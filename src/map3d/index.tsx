@@ -16,7 +16,7 @@ import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 
-import { drawRadar, radarData, RadarOption } from "./radar";
+import { drawRadar, radarData, RadarOption, disposeRadarCache } from "./radar";
 import { initScene } from "./scene";
 import { mapConfig } from "./mapConfig";
 import { initCamera } from "./camera";
@@ -27,22 +27,53 @@ export type ProjectionFnParamType = {
   scale: number;
 };
 
+export interface CityConfig {
+  name: string;
+  url?: string;
+}
+
+export interface ProvinceConfig {
+  name: string;
+  cities: CityConfig[];
+}
+
+export interface CityGeoJsonData {
+  provinceName: string;
+  cityName: string;
+  geoJson: GeoJsonType;
+}
+
+export interface DistrictGeoJsonData {
+  provinceName: string;
+  cityName: string;
+  geoJson: GeoJsonType;
+}
+
 interface Props {
   geoJson: GeoJsonType;
-  dblClickFn: (customProperties: any) => void;
   projectionFnParam: ProjectionFnParamType;
+  displayConfig: ProvinceConfig[];
+  cityGeoJsonData: CityGeoJsonData[];
+  districtGeoJsonData: DistrictGeoJsonData[];
 }
 
 let lastPick: any = null;
 
 function Map3D(props: Props) {
-  const { geoJson, dblClickFn, projectionFnParam } = props;
+  const { geoJson, projectionFnParam, displayConfig, cityGeoJsonData, districtGeoJsonData } = props;
   const mapRef = useRef<any>();
   const map2dRef = useRef<any>();
   const toolTipRef = useRef<any>();
+  const isHoveringTooltipRef = useRef<boolean>(false); // 标记鼠标是否在面板上
+  const currentCityDataRef = useRef<any>(null); // 当前显示的地级市数据
+  const isPinnedRef = useRef<boolean>(false); // 标记面板是否被固定
+  const animationFrameIdRef = useRef<number | null>(null); // 保存动画帧ID，用于清理
 
   const [toolTipData, setToolTipData] = useState<any>({
     text: "",
+    districts: [],
+    showPanel: false,
+    isCity: false,
   });
 
   useEffect(() => {
@@ -63,10 +94,17 @@ function Map3D(props: Props) {
     const { camera, cameraHelper } = initCamera(currentDom);
 
     /**
-     * 初始化渲染器
+     * 初始化渲染器 - 性能优化
      */
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      powerPreference: "high-performance", // 优先使用高性能GPU
+      stencil: false, // 禁用不需要的功能
+      depth: true,
+    });
     renderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 限制像素比，提高性能
+    renderer.shadowMap.enabled = false; // 禁用阴影（如果不需要）
     // 防止开发时重复渲染
     // if (!currentDom.hasChildNodes()) {
     //   currentDom.appendChild(renderer.domElement);
@@ -95,7 +133,9 @@ function Map3D(props: Props) {
      */
     const { mapObject3D, label2dData } = generateMapObject3D(
       geoJson,
-      projectionFnParam
+      projectionFnParam,
+      displayConfig,
+      cityGeoJsonData
     );
     scene.add(mapObject3D);
 
@@ -105,16 +145,32 @@ function Map3D(props: Props) {
     const mapScale = getDynamicMapScale(mapObject3D, currentDom);
 
     /**
-     * 绘制 2D 面板
+     * 绘制 2D 面板 - 只显示地级市标签（不显示省份标签）
      */
-    const labelObject2D = generateMapLabel2D(label2dData);
-    mapObject3D.add(labelObject2D);
+    const labelObject2D = generateMapLabel2D(
+      label2dData, 
+      displayConfig, 
+      cityGeoJsonData, 
+      projectionFnParam,
+      districtGeoJsonData
+    );
+    if (labelObject2D && labelObject2D.children.length > 0) {
+      mapObject3D.add(labelObject2D);
+    }
 
     /**
-     * 绘制点位
+     * 绘制点位 - 只显示配置中的省份和地级市
      */
-    const { spotList, spotObject3D } = generateMapSpot(label2dData);
+    const { spotList, spotObject3D, citySpotList } = generateMapSpot(
+      label2dData, 
+      displayConfig, 
+      cityGeoJsonData, 
+      projectionFnParam
+    );
     mapObject3D.add(spotObject3D);
+    
+    // 保存citySpotList到外部作用域，供动画循环使用
+    const citySpotListRef = citySpotList || [];
 
     // Models
     // coneUncompression.glb 是压缩过的模型，需要用dracoLoader加载
@@ -130,8 +186,19 @@ function Map3D(props: Props) {
 
     // loader.load("/models/coneUncompression.glb", (glb) => {
     loader.load("/models/cone.glb", (glb) => {
+      // 如果没有配置，不添加任何模型动画
+      if (!displayConfig || displayConfig.length === 0) {
+        return;
+      }
+      
+      // 只为配置中的省份添加模型动画
+      const displayProvinceNames = displayConfig.map((p: any) => p.name);
       label2dData.forEach((item: any) => {
-        // console.log(item, "0-0-0-");
+        // 只显示配置中的省份
+        if (!displayProvinceNames.includes(item.featureName)) {
+          return;
+        }
+        
         const { featureCenterCoord } = item;
         const clonedModel = glb.scene.clone();
         const mixer = new THREE.AnimationMixer(clonedModel);
@@ -161,61 +228,72 @@ function Map3D(props: Props) {
     });
 
     /**
-     * 绘制连线（随机生成两个点位）
-     */
-    const MAX_LINE_COUNT = 5; // 随机生成5组线
-    let connectLine: any[] = [];
-    for (let count = 0; count < MAX_LINE_COUNT; count++) {
-      const midIndex = Math.floor(label2dData.length / 2);
-      const indexStart = Math.floor(Math.random() * midIndex);
-      const indexEnd = Math.floor(Math.random() * midIndex) + midIndex - 1;
-      connectLine.push({
-        indexStart,
-        indexEnd,
-      });
-    }
-
-    /**
-     * 绘制飞行的点
+     * 绘制连线（只连接配置中的省份）
      */
     const flyObject3D = new THREE.Object3D();
     const flySpotList: any = [];
-    connectLine.forEach((item: any) => {
-      const { indexStart, indexEnd } = item;
-      const { flyLine, flySpot } = drawLineBetween2Spot(
-        label2dData[indexStart].featureCenterCoord,
-        label2dData[indexEnd].featureCenterCoord
+    
+    // 如果没有配置，不绘制任何连线
+    if (!displayConfig || displayConfig.length === 0) {
+      mapObject3D.add(flyObject3D);
+    } else {
+      const displayProvinceNames = displayConfig.map((p: any) => p.name);
+      const filteredLabel2dData = label2dData.filter((item: any) => 
+        displayProvinceNames.includes(item.featureName)
       );
-      flyObject3D.add(flyLine);
-      flyObject3D.add(flySpot);
-      flySpotList.push(flySpot);
-    });
-    mapObject3D.add(flyObject3D);
+      
+      // 只在配置的省份之间随机连线
+      if (filteredLabel2dData.length >= 2) {
+      const MAX_LINE_COUNT = Math.min(5, filteredLabel2dData.length); // 最多5组线
+      let connectLine: any[] = [];
+      for (let count = 0; count < MAX_LINE_COUNT; count++) {
+        const indexStart = Math.floor(Math.random() * filteredLabel2dData.length);
+        let indexEnd = Math.floor(Math.random() * filteredLabel2dData.length);
+        // 确保起点和终点不同
+        while (indexEnd === indexStart && filteredLabel2dData.length > 1) {
+          indexEnd = Math.floor(Math.random() * filteredLabel2dData.length);
+        }
+        connectLine.push({
+          indexStart,
+          indexEnd,
+        });
+      }
+
+      /**
+       * 绘制飞行的点
+       */
+      connectLine.forEach((item: any) => {
+        const { indexStart, indexEnd } = item;
+        const { flyLine, flySpot } = drawLineBetween2Spot(
+          filteredLabel2dData[indexStart].featureCenterCoord,
+          filteredLabel2dData[indexEnd].featureCenterCoord
+        );
+        flyObject3D.add(flyLine);
+        flyObject3D.add(flySpot);
+        flySpotList.push(flySpot);
+      });
+      }
+      
+      mapObject3D.add(flyObject3D);
+    }
 
     /**
-     * 绘制雷达
+     * 绘制雷达 - 可选：如果不需要可以注释掉
      */
+    const radarMeshes: THREE.Mesh[] = [];
     radarData.forEach((item: RadarOption) => {
       const planeMesh = drawRadar(item, ratio);
       scene.add(planeMesh);
+      radarMeshes.push(planeMesh);
     });
 
     /**
-     * 初始化 CameraHelper
+     * 初始化控制器 - 禁止旋转
      */
-    scene.add(cameraHelper);
-
-    /**
-     * 初始化 AxesHelper
-     */
-    const axesHelper = new THREE.AxesHelper(100);
-    scene.add(axesHelper);
-
-    /**
-     * 初始化控制器
-     */
-    // new OrbitControls(camera, renderer.domElement);
-    new OrbitControls(camera, labelRenderer.domElement);
+    const controls = new OrbitControls(camera, labelRenderer.domElement);
+    controls.enableRotate = false; // 禁止旋转
+    controls.enableZoom = true; // 允许缩放
+    controls.enablePan = true; // 允许平移
 
     /**
      * 新增光源
@@ -223,10 +301,6 @@ function Map3D(props: Props) {
     const light = new THREE.PointLight(0xffffff, 1.5);
     light.position.set(0, -5, 30);
     scene.add(light);
-
-    // 光源辅助线
-    const lightHelper = new THREE.PointLightHelper(light);
-    scene.add(lightHelper);
 
     // 视窗伸缩
     const onResizeEvent = () => {
@@ -237,8 +311,8 @@ function Map3D(props: Props) {
       // 更新渲染器
       renderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
       labelRenderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
-      // 设置渲染器的像素比例
-      renderer.setPixelRatio(window.devicePixelRatio);
+      // 设置渲染器的像素比例 - 限制最大像素比
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     };
 
     /**
@@ -247,61 +321,143 @@ function Map3D(props: Props) {
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
 
-    // 鼠标移入事件
+    // 鼠标移入事件 - 性能优化：节流处理
+    let mouseMoveThrottle = 0;
     const onMouseMoveEvent = (e: MouseEvent) => {
-      const intersects = raycaster.intersectObjects(scene.children);
+      // 如果鼠标在面板上，不处理地图交互
+      if (isHoveringTooltipRef.current) {
+        return;
+      }
+      
+      // 节流：每3帧更新一次鼠标位置（约50ms）
+      mouseMoveThrottle++;
+      if (mouseMoveThrottle % 3 !== 0) {
+        return;
+      }
+      
       pointer.x = (e.clientX / currentDom.clientWidth) * 2 - 1;
       pointer.y = -(e.clientY / currentDom.clientHeight) * 2 + 1;
+      
+      // 性能优化：只检测可交互的对象，减少检测范围
+      const interactiveObjects: THREE.Object3D[] = [];
+      scene.traverse((obj: any) => {
+        if (obj.userData.isCity || obj.userData.isChangeColor) {
+          interactiveObjects.push(obj);
+        }
+      });
+      const intersects = raycaster.intersectObjects(interactiveObjects, false);
 
       // 如果存在，则鼠标移出需要重置
       if (lastPick) {
-        // lastPick.object.material[0].color.set(mapConfig.mapColor);
-
-        const color = mapConfig.mapColorGradient[Math.floor(Math.random() * 4)];
-        lastPick.object.material[0].color.set(color);
-        lastPick.object.material[0].opacity = mapConfig.mapOpacity; // 设置完全不透明
+        // 检查是否是地级市圆点或标签
+        if (lastPick.object.userData.isCity) {
+          // 地级市圆点恢复原色
+          if (lastPick.object.material && lastPick.object.material.color) {
+            lastPick.object.material.color.set("#FFD700");
+          }
+        } else if (lastPick.object.userData.isChangeColor) {
+          // 省份恢复原色
+          const color = mapConfig.mapColorGradient[Math.floor(Math.random() * 4)];
+          lastPick.object.material[0].color.set(color);
+          lastPick.object.material[0].opacity = mapConfig.mapOpacity;
+        }
       }
       lastPick = null;
-      // lastPick = intersects.find(
-      //   (item: any) => item.object.material && item.object.material.length === 2
-      // );
-      // 优化
+      
+      // 优先检查地级市圆点、标签和标签的父对象
       lastPick = intersects.find(
-        (item: any) => item.object.userData.isChangeColor
+        (item: any) => {
+          // 检查对象本身
+          if (item.object.userData.isCity) return true;
+          // 检查父对象（标签可能挂载在父对象上）
+          if (item.object.parent && item.object.parent.userData && item.object.parent.userData.isCity) {
+            return true;
+          }
+          return false;
+        }
       );
+      
+      // 如果找到的是标签的父对象，使用父对象
+      if (lastPick && lastPick.object.parent && lastPick.object.parent.userData && lastPick.object.parent.userData.isCity) {
+        lastPick = {
+          ...lastPick,
+          object: lastPick.object.parent
+        };
+      }
+      
+      // 如果没有找到地级市，再检查省份（但省份不显示面板）
+      if (!lastPick) {
+        lastPick = intersects.find(
+          (item: any) => item.object.userData.isChangeColor
+        );
+      }
 
       if (lastPick) {
-        const properties = lastPick.object.parent.customProperties;
-        if (lastPick.object.material[0]) {
-          lastPick.object.material[0].color.set(mapConfig.mapHoverColor);
-          lastPick.object.material[0].opacity = 1; // 设置完全不透明
-        }
+        // 处理地级市悬浮
+        if (lastPick.object.userData.isCity) {
+          const cityData = lastPick.object.userData;
+          if (lastPick.object.material && lastPick.object.material.color) {
+            lastPick.object.material.color.set("#FF6B6B"); // 悬浮时变红色
+          }
 
-        if (toolTipRef.current && toolTipRef.current.style) {
-          toolTipRef.current.style.left = e.clientX + 2 + "px";
-          toolTipRef.current.style.top = e.clientY + 2 + "px";
-          toolTipRef.current.style.visibility = "visible";
-        }
-        setToolTipData({
-          text: properties.name,
-        });
-      } else {
-        toolTipRef.current.style.visibility = "hidden";
-      }
-    };
+          // 保存当前地级市数据
+          currentCityDataRef.current = cityData;
 
-    // 鼠标双击事件
-    const onDblclickEvent = () => {
-      const intersects = raycaster.intersectObjects(scene.children);
-      const target = intersects.find(
-        (item: any) => item.object.userData.isChangeColor
-      );
-      if (target) {
-        const obj: any = target.object.parent;
-        const p = obj.customProperties;
-        dblClickFn(p);
-      }
+          // 跟随鼠标位置显示面板
+          if (toolTipRef.current && toolTipRef.current.style) {
+            // 在鼠标位置旁边显示，添加偏移避免遮挡
+            const offsetX = 15; // 右侧偏移
+            const offsetY = 15; // 下方偏移
+            toolTipRef.current.style.left = (e.clientX + offsetX) + "px";
+            toolTipRef.current.style.top = (e.clientY + offsetY) + "px";
+            toolTipRef.current.style.visibility = "visible";
+          }
+          
+          // 显示地级市信息和市区列表
+          setToolTipData({
+            text: cityData.cityName,
+            isCity: true,
+            provinceName: cityData.provinceName,
+            districts: cityData.districts || [],
+            showPanel: true,
+            isPinned: false,
+          });
+        } else {
+          // 处理省份悬浮 - 显示省份名字
+          const properties = lastPick.object.parent.customProperties;
+          if (lastPick.object.material[0]) {
+            lastPick.object.material[0].color.set(mapConfig.mapHoverColor);
+            lastPick.object.material[0].opacity = 1;
+          }
+          
+          // 显示省份面板
+          if (toolTipRef.current && toolTipRef.current.style) {
+            const offsetX = 15;
+            const offsetY = 15;
+            toolTipRef.current.style.left = (e.clientX + offsetX) + "px";
+            toolTipRef.current.style.top = (e.clientY + offsetY) + "px";
+            toolTipRef.current.style.visibility = "visible";
+          }
+          
+          setToolTipData({
+            text: properties.name,
+            isCity: false,
+            provinceName: properties.name,
+            districts: [],
+            showPanel: true, // 省份也显示面板
+          });
+        }
+       } else {
+         // 如果鼠标不在面板上，则隐藏
+         if (!isHoveringTooltipRef.current) {
+           if (toolTipRef.current && toolTipRef.current.style) {
+             toolTipRef.current.style.visibility = "hidden";
+           }
+         }
+       }
     };
+    
+     // 移除点击事件 - 只使用悬浮展开面板
 
     /**
      * 动画
@@ -309,54 +465,81 @@ function Map3D(props: Props) {
     gsap.to(mapObject3D.scale, { x: mapScale, y: mapScale, z: 1, duration: 1 });
 
     /**
-     * Animate
+     * Animate - 性能优化版本
      */
     const clock = new THREE.Clock();
-    let previousTime = 0;
+    let frameCount = 0;
     const animate = function () {
-      // const elapsedTime = clock.getElapsedTime();
-      // const deltaTime = elapsedTime - previousTime;
-      // previousTime = elapsedTime;
-
-      // Update mixer
-      // mixer?.update(deltaTime);
+      frameCount++;
       const delta = clock.getDelta();
-      modelMixer.map((item: any) => item.update(delta));
+      
+      // Update mixer - 只在有动画时更新
+      if (modelMixer.length > 0) {
+        modelMixer.forEach((mixer: any) => mixer.update(delta));
+      }
 
-      // 雷达
-      ratio.value += 0.01;
+      // 雷达 - 优化：使用更平滑的时间增量
+      ratio.value += delta * 10; // 使用delta而不是固定值，更平滑
 
-      requestAnimationFrame(animate);
-      // 通过摄像机和鼠标位置更新射线
-      raycaster.setFromCamera(pointer, camera);
+      // 性能优化：减少raycaster更新频率（每3帧更新一次）
+      if (frameCount % 3 === 0) {
+        raycaster.setFromCamera(pointer, camera);
+      }
+
+      // 渲染场景 - 只在需要时渲染
       renderer.render(scene, camera);
-      labelRenderer.render(scene, camera);
+      // CSS2D渲染器只在有标签时渲染
+      if (labelObject2D && labelObject2D.children.length > 0) {
+        labelRenderer.render(scene, camera);
+      }
 
-      // 圆环
-      spotList.forEach((mesh: any) => {
-        mesh._s += 0.01;
-        mesh.scale.set(1 * mesh._s, 1 * mesh._s, 1 * mesh._s);
-        if (mesh._s <= 2) {
-          mesh.material.opacity = 2 - mesh._s;
-        } else {
-          mesh._s = 1;
-        }
-      });
+      // 省份圆环动画 - 批量处理，减少循环开销
+      if (spotList.length > 0) {
+        spotList.forEach((mesh: any) => {
+          mesh._s += 0.01;
+          if (mesh._s <= 2) {
+            mesh.scale.setScalar(mesh._s); // 使用setScalar代替三个参数
+            mesh.material.opacity = 2 - mesh._s;
+          } else {
+            mesh._s = 1;
+            mesh.scale.setScalar(1);
+            mesh.material.opacity = 1;
+          }
+        });
+      }
+      
+      // 地级市圆环动画 - 更明显的闪烁效果
+      if (citySpotListRef.length > 0) {
+        citySpotListRef.forEach((mesh: any) => {
+          if (!mesh._s) mesh._s = 1;
+          mesh._s += 0.015;
+          if (mesh._s <= 2.5) {
+            mesh.scale.setScalar(mesh._s);
+            mesh.material.opacity = 2.5 - mesh._s;
+          } else {
+            mesh._s = 1;
+            mesh.scale.setScalar(1);
+            mesh.material.opacity = 1;
+          }
+        });
+      }
 
-      // 飞行的圆点
-      flySpotList.forEach(function (mesh: any) {
-        mesh._s += 0.003;
-        let tankPosition = new THREE.Vector3();
-        // getPointAt() 根据弧长在曲线上的位置。必须在范围[0，1]内。
-        tankPosition = mesh.curve.getPointAt(mesh._s % 1);
-        mesh.position.set(tankPosition.x, tankPosition.y, tankPosition.z);
-      });
+      // 飞行的圆点 - 优化：减少向量创建
+      if (flySpotList.length > 0) {
+        const tempPosition = new THREE.Vector3(); // 复用向量对象
+        flySpotList.forEach(function (mesh: any) {
+          mesh._s += 0.003;
+          mesh.curve.getPointAt(mesh._s % 1, tempPosition); // 使用第二个参数避免创建新对象
+          mesh.position.copy(tempPosition);
+        });
+      }
+
+      animationFrameIdRef.current = requestAnimationFrame(animate);
     };
-    animate();
+    animationFrameIdRef.current = requestAnimationFrame(animate);
 
     window.addEventListener("resize", onResizeEvent, false);
     window.addEventListener("mousemove", onMouseMoveEvent, false);
-    window.addEventListener("dblclick", onDblclickEvent, false);
 
     // dat.GUI 配置
     const gui = new dat.GUI();
@@ -434,43 +617,6 @@ function Map3D(props: Props) {
         });
       });
 
-    // dat.GUI 控制显示/隐藏辅助对象
-    const helperConfig = {
-      cameraHelper: true,
-      axesHelper: true,
-      lightHelper: true,
-    };
-    gui
-      .add(helperConfig, "cameraHelper")
-      .name("显示CameraHelper")
-      .onChange((v: boolean) => {
-        if (v) {
-          scene.add(cameraHelper);
-        } else {
-          scene.remove(cameraHelper);
-        }
-      });
-    gui
-      .add(helperConfig, "axesHelper")
-      .name("显示AxesHelper")
-      .onChange((v: boolean) => {
-        if (v) {
-          scene.add(axesHelper);
-        } else {
-          scene.remove(axesHelper);
-        }
-      });
-    gui
-      .add(helperConfig, "lightHelper")
-      .name("显示LightHelper")
-      .onChange((v: boolean) => {
-        if (v) {
-          scene.add(lightHelper);
-        } else {
-          scene.remove(lightHelper);
-        }
-      });
-
     // 光强度调节
     const lightConfig = { intensity: light.intensity };
     gui
@@ -481,10 +627,44 @@ function Map3D(props: Props) {
       });
 
     return () => {
+      // 清理动画帧
+      if (animationFrameIdRef.current !== null) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+      
+      // 清理事件监听器
       window.removeEventListener("resize", onResizeEvent);
       window.removeEventListener("mousemove", onMouseMoveEvent);
-      window.removeEventListener("dblclick", onDblclickEvent);
+      
+      // 清理GUI
       gui.destroy();
+      
+      // 清理雷达网格
+      radarMeshes.forEach((mesh: any) => {
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) mesh.material.dispose();
+        scene.remove(mesh);
+      });
+      
+      // 清理几何体和材质
+      scene.traverse((object: any) => {
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach((mat: any) => {
+              if (mat.dispose) mat.dispose();
+            });
+          } else if (object.material.dispose) {
+            object.material.dispose();
+          }
+        }
+      });
+      
+      // 清理渲染器
+      renderer.dispose();
+      labelRenderer.domElement.remove();
     };
   }, [geoJson]);
 
@@ -499,7 +679,20 @@ function Map3D(props: Props) {
     >
       <div ref={map2dRef} />
       <div ref={mapRef} style={{ width: "100%", height: "100%" }}></div>
-      <ToolTip innterRef={toolTipRef} data={toolTipData}></ToolTip>
+       <ToolTip 
+         innterRef={toolTipRef} 
+         data={toolTipData}
+         onMouseEnter={() => {
+           isHoveringTooltipRef.current = true;
+         }}
+         onMouseLeave={() => {
+           isHoveringTooltipRef.current = false;
+           // 鼠标移出面板时隐藏
+           if (toolTipRef.current && toolTipRef.current.style) {
+             toolTipRef.current.style.visibility = "hidden";
+           }
+         }}
+       ></ToolTip>
     </div>
   );
 }
