@@ -17,7 +17,7 @@ import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 
-import { drawRadar, radarData, RadarOption, disposeRadarCache } from "./radar";
+// 雷达功能已移除
 import { initScene } from "./scene";
 import { mapConfig } from "./mapConfig";
 import { initCamera } from "./camera";
@@ -80,9 +80,6 @@ function Map3D(props: Props) {
   useEffect(() => {
     const currentDom = mapRef.current;
     if (!currentDom) return;
-    const ratio = {
-      value: 0,
-    };
 
     /**
      * 初始化场景
@@ -361,14 +358,10 @@ function Map3D(props: Props) {
     }
 
     /**
-     * 绘制雷达 - 可选：如果不需要可以注释掉
+     * 绘制雷达 - 已移除
      */
     const radarMeshes: THREE.Mesh[] = [];
-    radarData.forEach((item: RadarOption) => {
-      const planeMesh = drawRadar(item, ratio);
-      scene.add(planeMesh);
-      radarMeshes.push(planeMesh);
-    });
+    // 雷达功能已移除
 
     /**
      * 初始化控制器 - 禁止旋转
@@ -561,8 +554,7 @@ function Map3D(props: Props) {
         modelMixer.forEach((mixer: any) => mixer.update(delta));
       }
 
-      // 雷达 - 优化：使用更平滑的时间增量
-      ratio.value += delta * 10; // 使用delta而不是固定值，更平滑
+      // 雷达功能已移除
 
       // 性能优化：减少raycaster更新频率（每3帧更新一次）
       if (frameCount % 3 === 0) {
@@ -722,12 +714,12 @@ function Map3D(props: Props) {
       // 清理GUI
       gui.destroy();
       
-      // 清理雷达网格
-      radarMeshes.forEach((mesh: any) => {
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) mesh.material.dispose();
-        scene.remove(mesh);
-      });
+      // 清理雷达网格 - 已移除雷达功能
+      // radarMeshes.forEach((mesh: any) => {
+      //   if (mesh.geometry) mesh.geometry.dispose();
+      //   if (mesh.material) mesh.material.dispose();
+      //   scene.remove(mesh);
+      // });
       
       // 清理几何体和材质
       scene.traverse((object: any) => {
