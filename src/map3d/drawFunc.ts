@@ -308,23 +308,7 @@ export function generateMapSpot(
   
   const displayProvinceNames = displayConfig.map((p: any) => p.name);
   
-  // 显示省份圆点
-  label2dData.forEach((item: any) => {
-    const { featureCenterCoord, featureName } = item;
-    
-    // 只显示配置中的省份
-    if (!displayProvinceNames.includes(featureName)) {
-      return;
-    }
-    
-    // 只为配置中的省份显示圆点和圆环
-    const spotObjectItem = drawSpot(featureCenterCoord);
-    if (spotObjectItem && spotObjectItem.circle && spotObjectItem.ring) {
-      spotObject3D.add(spotObjectItem.circle);
-      spotObject3D.add(spotObjectItem.ring);
-      spotList.push(spotObjectItem.ring);
-    }
-  });
+  // 不显示省份圆点（center标签）- 只显示地级市圆点
   
   // 显示地级市圆点（使用真实坐标）
   if (cityGeoJsonData && projectionFnParam) {

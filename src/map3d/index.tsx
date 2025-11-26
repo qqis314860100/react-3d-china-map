@@ -11,6 +11,7 @@ import {
 } from "./drawFunc";
 import { GeoJsonType } from "./typed";
 import gsap from "gsap";
+import * as d3 from "d3";
 
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
@@ -228,7 +229,7 @@ function Map3D(props: Props) {
     });
 
     /**
-     * 绘制连线（只连接配置中的省份）
+     * 绘制连线（所有配置点都连接到福建省宁德市）
      */
     const flyObject3D = new THREE.Object3D();
     const flySpotList: any = [];
@@ -237,41 +238,123 @@ function Map3D(props: Props) {
     if (!displayConfig || displayConfig.length === 0) {
       mapObject3D.add(flyObject3D);
     } else {
+      // 收集所有需要连线的地区坐标
+      const allLocationCoords: Array<{ coord: [number, number], name: string }> = [];
+      
+      // 1. 添加省份坐标
       const displayProvinceNames = displayConfig.map((p: any) => p.name);
       const filteredLabel2dData = label2dData.filter((item: any) => 
         displayProvinceNames.includes(item.featureName)
       );
+      filteredLabel2dData.forEach((item: any) => {
+        allLocationCoords.push({
+          coord: item.featureCenterCoord,
+          name: item.featureName
+        });
+      });
       
-      // 只在配置的省份之间随机连线
-      if (filteredLabel2dData.length >= 2) {
-      const MAX_LINE_COUNT = Math.min(5, filteredLabel2dData.length); // 最多5组线
-      let connectLine: any[] = [];
-      for (let count = 0; count < MAX_LINE_COUNT; count++) {
-        const indexStart = Math.floor(Math.random() * filteredLabel2dData.length);
-        let indexEnd = Math.floor(Math.random() * filteredLabel2dData.length);
-        // 确保起点和终点不同
-        while (indexEnd === indexStart && filteredLabel2dData.length > 1) {
-          indexEnd = Math.floor(Math.random() * filteredLabel2dData.length);
-        }
-        connectLine.push({
-          indexStart,
-          indexEnd,
+      // 2. 添加地级市坐标
+      if (cityGeoJsonData && cityGeoJsonData.length > 0) {
+        const { center, scale } = projectionFnParam;
+        const cityProjectionFn = d3.geoMercator()
+          .center(center)
+          .scale(scale)
+          .translate([0, 0]);
+        
+        const provinceConfigMap = new Map();
+        displayConfig.forEach((config: any) => {
+          provinceConfigMap.set(config.name, config);
+        });
+        
+        cityGeoJsonData.forEach((cityData: any) => {
+          const provinceName = cityData.provinceName;
+          const provinceConfig = provinceConfigMap.get(provinceName);
+          
+          if (!provinceConfig || !provinceConfig.cities) {
+            return;
+          }
+          
+          const cityGeoJson = cityData.geoJson;
+          if (!cityGeoJson || !cityGeoJson.features) {
+            return;
+          }
+          
+          // 遍历地级市数据，找到匹配的地级市并添加坐标
+          provinceConfig.cities.forEach((cityConfig: any) => {
+            const cityFeature = cityGeoJson.features.find((f: any) => 
+              f.properties.name === cityConfig.name
+            );
+            
+            if (cityFeature && cityFeature.properties.centroid) {
+              const cityCoord = cityProjectionFn(cityFeature.properties.centroid);
+              if (cityCoord) {
+                allLocationCoords.push({
+                  coord: cityCoord,
+                  name: cityConfig.name
+                });
+              }
+            }
+          });
         });
       }
-
-      /**
-       * 绘制飞行的点
-       */
-      connectLine.forEach((item: any) => {
-        const { indexStart, indexEnd } = item;
-        const { flyLine, flySpot } = drawLineBetween2Spot(
-          filteredLabel2dData[indexStart].featureCenterCoord,
-          filteredLabel2dData[indexEnd].featureCenterCoord
-        );
-        flyObject3D.add(flyLine);
-        flyObject3D.add(flySpot);
-        flySpotList.push(flySpot);
-      });
+      
+      // 3. 查找福建省宁德市的坐标
+      let ningdeCoord: [number, number] | null = null;
+      
+      // 从cityGeoJsonData中查找福建省宁德市
+      if (cityGeoJsonData && cityGeoJsonData.length > 0) {
+        const { center, scale } = projectionFnParam;
+        const cityProjectionFn = d3.geoMercator()
+          .center(center)
+          .scale(scale)
+          .translate([0, 0]);
+        
+        const fujianCityData = cityGeoJsonData.find((data: any) => data.provinceName === "福建省");
+        if (fujianCityData && fujianCityData.geoJson && fujianCityData.geoJson.features) {
+          const ningdeFeature = fujianCityData.geoJson.features.find((f: any) => 
+            f.properties.name === "宁德市"
+          );
+          if (ningdeFeature && ningdeFeature.properties.centroid) {
+            const coord = cityProjectionFn(ningdeFeature.properties.centroid);
+            if (coord) {
+              ningdeCoord = coord;
+            }
+          }
+        }
+      }
+      
+      // 如果找不到宁德市，尝试从geoJson中查找福建省的centroid作为备选
+      if (!ningdeCoord) {
+        const fujianFeature = geoJson.features.find((f: any) => f.properties.name === "福建省");
+        if (fujianFeature && fujianFeature.properties.centroid) {
+          const { center, scale } = projectionFnParam;
+          const projectionFn = d3.geoMercator()
+            .center(center)
+            .scale(scale)
+            .translate([0, 0]);
+          const coord = projectionFn(fujianFeature.properties.centroid);
+          if (coord) {
+            ningdeCoord = coord;
+          }
+        }
+      }
+      
+      // 4. 如果找到了宁德市坐标，让所有配置点都连接到宁德市
+      if (ningdeCoord && allLocationCoords.length > 0) {
+        allLocationCoords.forEach((location) => {
+          // 跳过宁德市自己
+          if (location.name === "宁德市") {
+            return;
+          }
+          
+          const { flyLine, flySpot } = drawLineBetween2Spot(
+            location.coord,
+            ningdeCoord!
+          );
+          flyObject3D.add(flyLine);
+          flyObject3D.add(flySpot);
+          flySpotList.push(flySpot);
+        });
       }
       
       mapObject3D.add(flyObject3D);
