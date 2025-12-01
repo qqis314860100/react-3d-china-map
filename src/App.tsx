@@ -2,6 +2,8 @@ import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import Map3D, { ProjectionFnParamType } from "./map3d";
 import { GeoJsonType } from "./map3d/typed";
+import { WORLD_DISPLAY_CONFIG, WORLD_MAP_PROJECTION } from "./worldMapConfig";
+import MapTabs from "./components/MapTabs";
 
 // 配置需要显示的省份和地级市
 export interface DistrictConfig {
@@ -144,20 +146,151 @@ export interface DistrictGeoJsonData {
   geoJson: GeoJsonType;
 }
 
+type MapType = "china" | "world";
+
 function App() {
+  const [mapType, setMapType] = useState<MapType>("china"); // 默认显示中国地图
   const [geoJson, setGeoJson] = useState<GeoJsonType>();
+  const [worldGeoJson, setWorldGeoJson] = useState<GeoJsonType>();
   const [cityGeoJsonData, setCityGeoJsonData] = useState<CityGeoJsonData[]>([]);
   const [districtGeoJsonData, setDistrictGeoJsonData] = useState<DistrictGeoJsonData[]>([]);
-  const [mapAdCode, setMapAdCode] = useState<number>(100000);
-  const [projectionFnParam, setProjectionFnParam] =
-    useState<ProjectionFnParamType>({
-      center: [104.0, 37.5],
-      scale: 40,
-    });
+  const [mapAdCode] = useState<number>(100000);
+  const [projectionFnParam] = useState<ProjectionFnParamType>({
+    center: [104.0, 37.5],
+    scale: 40,
+  });
+  const [worldProjectionFnParam] = useState<ProjectionFnParamType>(WORLD_MAP_PROJECTION);
 
+  // 请求中国地图数据
+  const queryMapData = useCallback(async (code: number) => {
+    const response = await axios.get(
+      `https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`
+    );
+    const { data } = response;
+    setGeoJson(data);
+  }, []);
+
+  // 加载中国地图数据
   useEffect(() => {
-    queryMapData(mapAdCode); // 默认的中国adcode码
-  }, [mapAdCode]);
+    if (mapType === "china") {
+      queryMapData(mapAdCode); // 默认的中国adcode码
+    }
+  }, [mapAdCode, mapType, queryMapData]);
+
+  // 加载世界地图数据（过滤掉南极和北极）
+  const loadWorldMapData = useCallback(async () => {
+    try {
+      // 尝试使用更可靠的数据源
+      const response = await axios.get(
+        "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson",
+        { timeout: 15000 }
+      );
+      
+      if (response.data && response.data.type === "FeatureCollection") {
+        console.log("世界地图数据加载成功，features数量:", response.data.features.length);
+        
+        // 改进的过滤逻辑：过滤掉南极和北极
+        const filteredFeatures = response.data.features.filter((feature: any) => {
+          if (!feature.geometry || !feature.geometry.coordinates) {
+            return false;
+          }
+          
+          try {
+            const coordinates = feature.geometry.coordinates;
+            let maxLat = -90;
+            let minLat = 90;
+            let hasValidCoords = false;
+            
+            // 递归检查坐标
+            const checkCoordinates = (coords: any, depth: number = 0): void => {
+              if (!Array.isArray(coords)) return;
+              
+              if (depth > 10) return; // 防止无限递归
+              
+              if (coords.length >= 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+                // 这是一个坐标点 [lng, lat]
+                const lat = coords[1];
+                const lng = coords[0];
+                
+                // 验证坐标有效性
+                if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                  maxLat = Math.max(maxLat, lat);
+                  minLat = Math.min(minLat, lat);
+                  hasValidCoords = true;
+                }
+              } else {
+                // 这是一个嵌套数组，继续递归
+                coords.forEach((coord: any) => checkCoordinates(coord, depth + 1));
+              }
+            };
+            
+            checkCoordinates(coordinates);
+            
+            // 排除南极（纬度 < -60）和北极（纬度 > 85），但保留有有效坐标的feature
+            if (!hasValidCoords) return false;
+            return minLat > -60 && maxLat < 85;
+          } catch (e) {
+            console.warn("过滤feature时出错:", e);
+            return false;
+          }
+        });
+        
+        console.log("过滤后的features数量:", filteredFeatures.length);
+        
+        if (filteredFeatures.length === 0) {
+          console.warn("过滤后没有features，使用原始数据");
+          setWorldGeoJson(response.data);
+        } else {
+          setWorldGeoJson({
+            ...response.data,
+            features: filteredFeatures
+          });
+        }
+      } else {
+        throw new Error("世界地图数据格式不正确");
+      }
+    } catch (error: any) {
+      console.error("加载世界地图数据失败:", error.message || error);
+      
+      // 尝试备用数据源
+      try {
+        console.log("尝试备用数据源...");
+        const response = await axios.get(
+          "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json",
+          { timeout: 15000 }
+        );
+        
+        // 这个数据源可能是TopoJSON格式，需要转换
+        if (response.data && response.data.type === "FeatureCollection") {
+          console.log("备用数据源加载成功");
+          setWorldGeoJson(response.data);
+        } else {
+          // 如果是TopoJSON，先简单处理
+          console.warn("数据可能是TopoJSON格式，尝试直接使用");
+          setWorldGeoJson({
+            type: "FeatureCollection",
+            features: []
+          });
+        }
+      } catch (error2: any) {
+        console.error("备用世界地图数据源也失败:", error2.message || error2);
+        
+        // 如果都失败了，使用一个简单的示例数据
+        console.warn("使用空的世界地图数据，请检查网络连接或数据源");
+        setWorldGeoJson({
+          type: "FeatureCollection",
+          features: []
+        });
+      }
+    }
+  }, []);
+
+  // 加载世界地图数据
+  useEffect(() => {
+    if (mapType === "world") {
+      loadWorldMapData();
+    }
+  }, [mapType, loadWorldMapData]);
 
   // 加载地级市数据
   useEffect(() => {
@@ -226,27 +359,80 @@ function App() {
     }
   }, [cityGeoJsonData]);
 
-  // 请求地图数据
-  const queryMapData = useCallback(async (code: number) => {
-    const response = await axios.get(
-      `https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`
-    );
-    const { data } = response;
-    setGeoJson(data);
-  }, []);
+  // 将世界地图配置转换为Map3D需要的格式
+  const worldDisplayConfig = WORLD_DISPLAY_CONFIG.map((country) => ({
+    name: country.name,
+    cities: country.cities.map((city) => ({
+      name: city.name,
+      coordinates: city.coordinates,
+      url: city.url,
+      districts: [], // 世界地图暂时不支持区级数据
+      adcode: undefined,
+    })),
+  }));
 
   return (
-    <>
-      {geoJson && cityGeoJsonData.length > 0 && districtGeoJsonData.length > 0 && (
-        <Map3D
-          geoJson={geoJson}
-          projectionFnParam={projectionFnParam}
-          displayConfig={DISPLAY_CONFIG}
-          cityGeoJsonData={cityGeoJsonData}
-          districtGeoJsonData={districtGeoJsonData}
-        />
-      )}
-    </>
+    <div style={{ width: "100%", height: "100vh", position: "relative" }}>
+      <MapTabs activeTab={mapType} onTabChange={setMapType} />
+      
+      {/* 中国地图 - 使用CSS控制显示/隐藏，保持状态 */}
+      <div style={{ 
+        width: "100%", 
+        height: "100%", 
+        display: mapType === "china" ? "block" : "none",
+        position: "absolute",
+        top: 0,
+        left: 0
+      }}>
+        {geoJson && cityGeoJsonData.length > 0 && districtGeoJsonData.length > 0 && (
+          <Map3D
+            geoJson={geoJson}
+            projectionFnParam={projectionFnParam}
+            displayConfig={DISPLAY_CONFIG}
+            cityGeoJsonData={cityGeoJsonData}
+            districtGeoJsonData={districtGeoJsonData}
+            mapType="china"
+          />
+        )}
+      </div>
+
+      {/* 世界地图 - 使用CSS控制显示/隐藏，保持状态 */}
+      <div style={{ 
+        width: "100%", 
+        height: "100%", 
+        display: mapType === "world" ? "block" : "none",
+        position: "absolute",
+        top: 0,
+        left: 0
+      }}>
+        {worldGeoJson && worldGeoJson.features && worldGeoJson.features.length > 0 ? (
+          <Map3D
+            geoJson={worldGeoJson}
+            projectionFnParam={worldProjectionFnParam}
+            displayConfig={worldDisplayConfig}
+            cityGeoJsonData={[]}
+            districtGeoJsonData={[]}
+            mapType="world"
+          />
+        ) : (
+          <div style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            color: "#fff",
+            fontSize: "16px",
+            zIndex: 1000,
+            textAlign: "center"
+          }}>
+            <div>正在加载世界地图数据...</div>
+            <div style={{ fontSize: "12px", marginTop: "10px", opacity: 0.7 }}>
+              如果长时间未加载，请检查网络连接
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

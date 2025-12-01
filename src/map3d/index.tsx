@@ -56,12 +56,13 @@ interface Props {
   displayConfig: ProvinceConfig[];
   cityGeoJsonData: CityGeoJsonData[];
   districtGeoJsonData: DistrictGeoJsonData[];
+  mapType?: "china" | "world"; // 地图类型
 }
 
 let lastPick: any = null;
 
 function Map3D(props: Props) {
-  const { geoJson, projectionFnParam, displayConfig, cityGeoJsonData, districtGeoJsonData } = props;
+  const { geoJson, projectionFnParam, displayConfig, cityGeoJsonData, districtGeoJsonData, mapType = "china" } = props;
   const mapRef = useRef<any>();
   const map2dRef = useRef<any>();
   const toolTipRef = useRef<any>();
@@ -69,6 +70,8 @@ function Map3D(props: Props) {
   const currentCityDataRef = useRef<any>(null); // 当前显示的地级市数据
   const isPinnedRef = useRef<boolean>(false); // 标记面板是否被固定
   const animationFrameIdRef = useRef<number | null>(null); // 保存动画帧ID，用于清理
+  // 使用mapType作为key，分别跟踪每个地图类型的动画状态
+  const hasAnimatedRef = useRef<{ [key: string]: boolean }>({});
 
   const [toolTipData, setToolTipData] = useState<any>({
     text: "",
@@ -89,7 +92,7 @@ function Map3D(props: Props) {
     /**
      * 初始化摄像机
      */
-    const { camera, cameraHelper } = initCamera(currentDom);
+    const { camera, cameraHelper } = initCamera(currentDom, mapType);
 
     /**
      * 初始化渲染器 - 性能优化
@@ -133,14 +136,24 @@ function Map3D(props: Props) {
       geoJson,
       projectionFnParam,
       displayConfig,
-      cityGeoJsonData
+      cityGeoJsonData,
+      mapType
     );
     scene.add(mapObject3D);
 
     /**
      * 动态地图缩放大小
      */
-    const mapScale = getDynamicMapScale(mapObject3D, currentDom);
+    const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
+    
+    // 对于世界地图，计算bounding box并调整位置以居中
+    if (mapType === "world") {
+      const boundingBox = new THREE.Box3().setFromObject(mapObject3D);
+      const center = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      // 将地图对象移动到原点，使地图居中
+      mapObject3D.position.set(-center.x, -center.y, 0);
+    }
 
     /**
      * 绘制 2D 面板 - 只显示地级市标签（不显示省份标签）
@@ -150,7 +163,8 @@ function Map3D(props: Props) {
       displayConfig, 
       cityGeoJsonData, 
       projectionFnParam,
-      districtGeoJsonData
+      districtGeoJsonData,
+      mapType
     );
     if (labelObject2D && labelObject2D.children.length > 0) {
       mapObject3D.add(labelObject2D);
@@ -163,7 +177,8 @@ function Map3D(props: Props) {
       label2dData, 
       displayConfig, 
       cityGeoJsonData, 
-      projectionFnParam
+      projectionFnParam,
+      mapType
     );
     mapObject3D.add(spotObject3D);
     
@@ -226,7 +241,9 @@ function Map3D(props: Props) {
     });
 
     /**
-     * 绘制连线（所有配置点都连接到福建省宁德市）
+     * 绘制连线
+     * 中国地图：所有配置点都连接到福建省宁德市
+     * 世界地图：不绘制连线
      */
     const flyObject3D = new THREE.Object3D();
     const flySpotList: any = [];
@@ -234,7 +251,11 @@ function Map3D(props: Props) {
     // 如果没有配置，不绘制任何连线
     if (!displayConfig || displayConfig.length === 0) {
       mapObject3D.add(flyObject3D);
+    } else if (mapType === "world") {
+      // 世界地图模式：不绘制连线
+      mapObject3D.add(flyObject3D);
     } else {
+      // 中国地图模式：连接到宁德市
       // 收集所有需要连线的地区坐标
       const allLocationCoords: Array<{ coord: [number, number], name: string }> = [];
       
@@ -493,10 +514,11 @@ function Map3D(props: Props) {
           setToolTipData({
             text: cityData.cityName,
             isCity: true,
-            provinceName: cityData.provinceName,
+            provinceName: cityData.provinceName || cityData.countryName,
             districts: cityData.districts || [],
             showPanel: true,
             isPinned: false,
+            url: cityData.url,
           });
         } else {
           // 处理省份悬浮 - 显示省份名字
@@ -536,9 +558,18 @@ function Map3D(props: Props) {
      // 移除点击事件 - 只使用悬浮展开面板
 
     /**
-     * 动画
+     * 动画 - 只在首次加载时执行，切换tab时不重新执行
      */
-    gsap.to(mapObject3D.scale, { x: mapScale, y: mapScale, z: 1, duration: 1 });
+    const animationKey = `${mapType}-${geoJson.features?.length || 0}`;
+    if (!hasAnimatedRef.current[animationKey]) {
+      // 首次加载时，从0开始缩放动画
+      mapObject3D.scale.set(0, 0, 0);
+      gsap.to(mapObject3D.scale, { x: mapScale, y: mapScale, z: 1, duration: 1 });
+      hasAnimatedRef.current[animationKey] = true;
+    } else {
+      // 如果已经动画过，直接设置最终缩放值，不执行动画
+      mapObject3D.scale.set(mapScale, mapScale, 1);
+    }
 
     /**
      * Animate - 性能优化版本

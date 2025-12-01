@@ -14,13 +14,13 @@ import {
 } from "./typed";
 import { ProjectionFnParamType } from ".";
 import { mapConfig } from "./mapConfig";
+import { CONTINENT_COLORS } from "../worldMapConfig";
 
 export function getDynamicMapScale(
   mapObject3D: THREE.Object3D,
-  containerRef: any
+  containerRef: any,
+  mapType: "china" | "world" = "china"
 ) {
-  // const width = containerRef.offsetWidth;
-  // const height = containerRef.offsetHeight;
   const width = containerRef.clientWidth;
   const height = containerRef.clientHeight;
   const refArea = width * height;
@@ -29,17 +29,26 @@ export function getDynamicMapScale(
   // 获取包围盒的尺寸
   const size = new THREE.Vector3();
   boundingBox.getSize(size);
-  // 新增 Math.random避免缩放为1，没有动画效果
+  
+  // 世界地图使用更大的缩放因子，确保地图铺满屏幕
+  const scaleFactor = mapType === "world" ? 300 : 400;
   const scale =
-    Math.round(Math.sqrt(refArea / (size.x * size.y * 400))) +
+    Math.round(Math.sqrt(refArea / (size.x * size.y * scaleFactor))) +
     parseFloat((Math.random() + 0.5).toFixed(2));
+  
+  // 世界地图确保最小缩放值
+  if (mapType === "world" && scale < 0.8) {
+    return 0.8;
+  }
+  
   return scale;
 }
 
 // 绘制挤出的材质
 export function drawExtrudeMesh(
   point: [number, number][],
-  projectionFn: any
+  projectionFn: any,
+  color?: string
 ): any {
   const shape = new THREE.Shape();
   const pointsArray = [];
@@ -62,7 +71,7 @@ export function drawExtrudeMesh(
 
   // 性能优化：使用更简单的材质，减少计算
   const material = new THREE.MeshLambertMaterial({
-    color: mapConfig.mapColorGradient[Math.floor(Math.random() * 4)], // 随机颜色
+    color: color || mapConfig.mapColorGradient[Math.floor(Math.random() * 4)], // 使用传入的颜色或随机颜色
     transparent: mapConfig.mapTransparent,
     opacity: mapConfig.mapOpacity,
   });
@@ -115,12 +124,99 @@ export function drawExtrudeMesh(
   return { mesh, line };
 }
 
+// 根据国家名称或坐标判断大洲
+function getContinentColor(countryName: string, centroid?: [number, number]): string {
+  
+  // 根据国家名称判断（简化版，可以根据需要扩展）
+  const countryToContinent: { [key: string]: string } = {
+    // 亚洲国家
+    "China": "Asia", "Japan": "Asia", "India": "Asia", "South Korea": "Asia", 
+    "North Korea": "Asia", "Thailand": "Asia", "Vietnam": "Asia", "Indonesia": "Asia",
+    "Malaysia": "Asia", "Philippines": "Asia", "Singapore": "Asia", "Myanmar": "Asia",
+    "Cambodia": "Asia", "Laos": "Asia", "Mongolia": "Asia", "Kazakhstan": "Asia",
+    "Uzbekistan": "Asia", "Turkmenistan": "Asia", "Kyrgyzstan": "Asia", "Tajikistan": "Asia",
+    "Afghanistan": "Asia", "Pakistan": "Asia", "Bangladesh": "Asia", "Sri Lanka": "Asia",
+    "Nepal": "Asia", "Bhutan": "Asia", "Iran": "Asia", "Iraq": "Asia", "Saudi Arabia": "Asia",
+    "United Arab Emirates": "Asia", "Israel": "Asia", "Turkey": "Asia",
+    
+    // 欧洲国家
+    "Russia": "Europe", "Germany": "Europe", "France": "Europe", "United Kingdom": "Europe",
+    "Italy": "Europe", "Spain": "Europe", "Poland": "Europe", "Ukraine": "Europe", "Romania": "Europe",
+    "Netherlands": "Europe", "Belgium": "Europe", "Greece": "Europe", "Portugal": "Europe",
+    "Czech Republic": "Europe", "Hungary": "Europe", "Sweden": "Europe", "Belarus": "Europe",
+    "Austria": "Europe", "Switzerland": "Europe", "Bulgaria": "Europe", "Serbia": "Europe",
+    "Denmark": "Europe", "Finland": "Europe", "Slovakia": "Europe", "Norway": "Europe",
+    "Ireland": "Europe", "Croatia": "Europe", "Bosnia and Herzegovina": "Europe",
+    
+    // 北美洲国家
+    "United States": "North America", "Canada": "North America", "Mexico": "North America",
+    "Guatemala": "North America", "Cuba": "North America", "Haiti": "North America",
+    "Dominican Republic": "North America", "Jamaica": "North America", "Panama": "North America",
+    "Costa Rica": "North America", "Honduras": "North America", "El Salvador": "North America",
+    "Nicaragua": "North America", "Belize": "North America",
+    
+    // 南美洲国家
+    "Brazil": "South America", "Argentina": "South America", "Peru": "South America",
+    "Colombia": "South America", "Venezuela": "South America", "Chile": "South America",
+    "Ecuador": "South America", "Bolivia": "South America", "Paraguay": "South America",
+    "Uruguay": "South America", "Guyana": "South America", "Suriname": "South America",
+    
+    // 非洲国家
+    "Egypt": "Africa", "South Africa": "Africa", "Nigeria": "Africa", "Kenya": "Africa",
+    "Ethiopia": "Africa", "Tanzania": "Africa", "Algeria": "Africa", "Sudan": "Africa",
+    "Morocco": "Africa", "Angola": "Africa", "Ghana": "Africa", "Mozambique": "Africa",
+    "Madagascar": "Africa", "Cameroon": "Africa", "Ivory Coast": "Africa", "Niger": "Africa",
+    
+    // 大洋洲国家
+    "Australia": "Oceania", "New Zealand": "Oceania", "Papua New Guinea": "Oceania",
+    "Fiji": "Oceania", "Solomon Islands": "Oceania", "Vanuatu": "Oceania",
+  };
+  
+  // 尝试根据国家名称匹配
+  const continent = countryToContinent[countryName];
+  if (continent && CONTINENT_COLORS[continent]) {
+    return CONTINENT_COLORS[continent];
+  }
+  
+  // 如果无法匹配，根据坐标判断（简化版）
+  if (centroid) {
+    const [lng, lat] = centroid;
+    // 亚洲：东经60-150，北纬10-60
+    if (lng >= 60 && lng <= 150 && lat >= 10 && lat <= 60) {
+      return CONTINENT_COLORS["Asia"] || CONTINENT_COLORS["default"];
+    }
+    // 欧洲：西经10-东经40，北纬35-70
+    if (lng >= -10 && lng <= 40 && lat >= 35 && lat <= 70) {
+      return CONTINENT_COLORS["Europe"] || CONTINENT_COLORS["default"];
+    }
+    // 北美洲：西经170-西经20，北纬10-70
+    if (lng >= -170 && lng <= -20 && lat >= 10 && lat <= 70) {
+      return CONTINENT_COLORS["North America"] || CONTINENT_COLORS["default"];
+    }
+    // 南美洲：西经80-西经30，南纬60-北纬15
+    if (lng >= -80 && lng <= -30 && lat >= -60 && lat <= 15) {
+      return CONTINENT_COLORS["South America"] || CONTINENT_COLORS["default"];
+    }
+    // 非洲：西经20-东经50，南纬35-北纬40
+    if (lng >= -20 && lng <= 50 && lat >= -35 && lat <= 40) {
+      return CONTINENT_COLORS["Africa"] || CONTINENT_COLORS["default"];
+    }
+    // 大洋洲：东经110-180，南纬50-北纬10
+    if (lng >= 110 && lng <= 180 && lat >= -50 && lat <= 10) {
+      return CONTINENT_COLORS["Oceania"] || CONTINENT_COLORS["default"];
+    }
+  }
+  
+  return CONTINENT_COLORS["default"];
+}
+
 // 生成地图3D模型
 export function generateMapObject3D(
   mapdata: GeoJsonType,
   projectionFnParam: ProjectionFnParamType,
   displayConfig?: any[],
-  cityGeoJsonData?: any[]
+  cityGeoJsonData?: any[],
+  mapType: "china" | "world" = "china"
 ) {
   // 地图对象
   const mapObject3D = new THREE.Object3D();
@@ -129,11 +225,13 @@ export function generateMapObject3D(
 
   const { center, scale } = projectionFnParam;
 
+  // 创建投影函数
+  // 对于世界地图，使用translate来确保居中显示
   const projectionFn = d3
     .geoMercator()
     .center(center)
     .scale(scale)
-    .translate([0, 0]);
+    .translate(mapType === "world" ? [0, 0] : [0, 0]); // 世界地图和中国地图都使用[0,0]作为初始translate
 
   const label2dData: any = []; // 存储自定义 2d 标签数据
   
@@ -171,11 +269,19 @@ export function generateMapObject3D(
     // 如果有配置且当前省份不在配置中，跳过绘制（但保留label2dData用于后续过滤）
     // 仍然绘制所有省份的地图，但只有配置的省份有标记和动画
 
+    // 获取颜色（世界地图根据大洲，中国地图使用随机颜色）
+    let featureColor: string | undefined;
+    if (mapType === "world") {
+      const countryName = featureName || basicFeatureItem.properties.name || "";
+      const centroid = basicFeatureItem.properties.centroid as [number, number] | undefined;
+      featureColor = getContinentColor(countryName, centroid);
+    }
+
     // MultiPolygon 类型
     if (featureType === "MultiPolygon") {
       featureCoords.forEach((multiPolygon: [number, number][][]) => {
         multiPolygon.forEach((polygon: [number, number][]) => {
-          const { mesh, line } = drawExtrudeMesh(polygon, projectionFn);
+          const { mesh, line } = drawExtrudeMesh(polygon, projectionFn, featureColor);
           provinceMapObject3D.add(mesh);
           provinceMapObject3D.add(line);
         });
@@ -185,7 +291,7 @@ export function generateMapObject3D(
     // Polygon 类型
     if (featureType === "Polygon") {
       featureCoords.forEach((polygon: [number, number][]) => {
-        const { mesh, line } = drawExtrudeMesh(polygon, projectionFn);
+        const { mesh, line } = drawExtrudeMesh(polygon, projectionFn, featureColor);
         provinceMapObject3D.add(mesh);
         provinceMapObject3D.add(line);
       });
@@ -203,7 +309,8 @@ export function generateMapLabel2D(
   displayConfig?: any[], 
   cityGeoJsonData?: any[],
   projectionFnParam?: ProjectionFnParamType,
-  districtGeoJsonData?: any[]
+  districtGeoJsonData?: any[],
+  mapType: "china" | "world" = "china"
 ) {
   const labelObject2D = new THREE.Object3D();
   
@@ -242,8 +349,41 @@ export function generateMapLabel2D(
   
   // 不显示省份标签，只显示地级市标签
   
-  // 显示地级市标签（使用真实坐标）
-  if (cityGeoJsonData && cityProjectionFn) {
+  // 世界地图模式：使用直接提供的坐标
+  if (mapType === "world" && projectionFnParam) {
+    const { center, scale } = projectionFnParam;
+    const worldProjectionFn = d3.geoMercator()
+      .center(center)
+      .scale(scale)
+      .translate([0, 0]);
+    
+    displayConfig?.forEach((countryConfig: any) => {
+      if (countryConfig.cities && countryConfig.cities.length > 0) {
+        countryConfig.cities.forEach((cityConfig: any) => {
+          if (cityConfig.coordinates) {
+            const cityCoord = worldProjectionFn(cityConfig.coordinates);
+            if (cityCoord) {
+              const cityLabelItem = draw2dLabel(cityCoord, cityConfig.name, true);
+              if (cityLabelItem) {
+                cityLabelItem.userData = {
+                  isCity: true,
+                  cityName: cityConfig.name,
+                  countryName: countryConfig.name,
+                  url: cityConfig.url,
+                  districts: cityConfig.districts || [],
+                };
+                labelObject2D.add(cityLabelItem);
+                labelCount++;
+              }
+            }
+          }
+        });
+      }
+    });
+  }
+  
+  // 中国地图模式：显示地级市标签（使用真实坐标）
+  if (mapType === "china" && cityGeoJsonData && cityProjectionFn) {
     cityGeoJsonData.forEach((cityData: any) => {
       const provinceName = cityData.provinceName;
       const provinceConfig = provinceConfigMap.get(provinceName);
@@ -295,7 +435,8 @@ export function generateMapSpot(
   label2dData: any, 
   displayConfig?: any[], 
   cityGeoJsonData?: any[],
-  projectionFnParam?: ProjectionFnParamType
+  projectionFnParam?: ProjectionFnParamType,
+  mapType: "china" | "world" = "china"
 ) {
   const spotObject3D = new THREE.Object3D();
   const spotList: any = [];
@@ -310,8 +451,58 @@ export function generateMapSpot(
   
   // 不显示省份圆点（center标签）- 只显示地级市圆点
   
-  // 显示地级市圆点（使用真实坐标）
-  if (cityGeoJsonData && projectionFnParam) {
+  // 世界地图模式：使用直接提供的坐标
+  if (mapType === "world" && projectionFnParam) {
+    const { center, scale } = projectionFnParam;
+    const worldProjectionFn = d3.geoMercator()
+      .center(center)
+      .scale(scale)
+      .translate([0, 0]);
+    
+    displayConfig?.forEach((countryConfig: any) => {
+      if (countryConfig.cities && countryConfig.cities.length > 0) {
+        countryConfig.cities.forEach((cityConfig: any) => {
+          if (cityConfig.coordinates) {
+            const cityCoord = worldProjectionFn(cityConfig.coordinates);
+            if (cityCoord) {
+              const citySpotItem = drawCitySpot(cityCoord);
+              if (citySpotItem && citySpotItem.circle && citySpotItem.ring) {
+                const cityUserData = {
+                  isCity: true,
+                  cityName: cityConfig.name,
+                  countryName: countryConfig.name,
+                  url: cityConfig.url,
+                  districts: cityConfig.districts || [],
+                };
+                
+                citySpotItem.circle.userData = cityUserData;
+                citySpotItem.ring.userData = cityUserData;
+                if (citySpotItem.innerGlow) {
+                  citySpotItem.innerGlow.userData = cityUserData;
+                }
+                if (citySpotItem.outerGlow) {
+                  citySpotItem.outerGlow.userData = cityUserData;
+                }
+                
+                spotObject3D.add(citySpotItem.circle);
+                spotObject3D.add(citySpotItem.ring);
+                if (citySpotItem.innerGlow) {
+                  spotObject3D.add(citySpotItem.innerGlow);
+                }
+                if (citySpotItem.outerGlow) {
+                  spotObject3D.add(citySpotItem.outerGlow);
+                }
+                citySpotList.push(citySpotItem.ring);
+              }
+            }
+          }
+        });
+      }
+    });
+  }
+  
+  // 中国地图模式：显示地级市圆点（使用真实坐标）
+  if (mapType === "china" && cityGeoJsonData && projectionFnParam) {
     const { center, scale } = projectionFnParam;
     const cityProjectionFn = d3.geoMercator()
       .center(center)

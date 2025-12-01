@@ -1,6 +1,6 @@
 function ToolTip(props: any) {
   const { innterRef, data, onMouseEnter, onMouseLeave } = props;
-  const { text, districts = [], showPanel = false, isCity = false, provinceName } = data;
+  const { text, districts = [], showPanel = false, isCity = false, provinceName, url } = data;
 
   const handleDistrictClick = (url?: string) => {
     if (url) {
@@ -43,7 +43,22 @@ function ToolTip(props: any) {
           </div>
           {provinceName && (
             <div style={{ fontSize: "13px", marginBottom: "15px", color: "#5BB1FF", opacity: 0.9 }}>
-              所属省份: {provinceName}
+              所属{provinceName.includes("省") || provinceName.includes("市") ? "省份" : "国家"}: {provinceName}
+            </div>
+          )}
+          {url && (
+            <div 
+              style={{ 
+                fontSize: "13px", 
+                marginBottom: "15px", 
+                color: "#FFD700", 
+                cursor: "pointer",
+                textDecoration: "underline",
+                opacity: 0.9 
+              }}
+              onClick={() => window.open(url, "_blank")}
+            >
+              查看详情 🔗
             </div>
           )}
         </>
