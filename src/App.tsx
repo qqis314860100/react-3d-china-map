@@ -287,10 +287,11 @@ function App() {
 
   // 加载世界地图数据
   useEffect(() => {
-    if (mapType === "world") {
+    // 只有在没有数据时才加载
+    if (mapType === "world" && !worldGeoJson) {
       loadWorldMapData();
     }
-  }, [mapType, loadWorldMapData]);
+  }, [mapType, loadWorldMapData, worldGeoJson]);
 
   // 加载地级市数据
   useEffect(() => {

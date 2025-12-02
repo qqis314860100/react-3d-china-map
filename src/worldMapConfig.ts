@@ -62,7 +62,7 @@ export const WORLD_DISPLAY_CONFIG: WorldCountryConfig[] = [
 // 世界地图投影参数 - 以欧洲为中心，铺满整个屏幕
 export const WORLD_MAP_PROJECTION = {
   center: [15.0, 50.0] as [number, number], // 欧洲中心点（经度15度，纬度50度，大约在德国/捷克附近）
-  scale: 180, // 调整缩放比例以铺满屏幕
+  scale: 100, // 调整缩放比例以铺满屏幕（减小scale让地图更大）
 };
 
 // 大洲颜色配置

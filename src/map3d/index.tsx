@@ -72,6 +72,14 @@ function Map3D(props: Props) {
   const animationFrameIdRef = useRef<number | null>(null); // 保存动画帧ID，用于清理
   // 使用mapType作为key，分别跟踪每个地图类型的动画状态
   const hasAnimatedRef = useRef<{ [key: string]: boolean }>({});
+  // 保存每个地图的相机状态
+  const cameraStateRef = useRef<{ 
+    [key: string]: { 
+      position: THREE.Vector3; 
+      zoom: number;
+      target: THREE.Vector3;
+    } 
+  }>({});
 
   const [toolTipData, setToolTipData] = useState<any>({
     text: "",
@@ -141,19 +149,19 @@ function Map3D(props: Props) {
     );
     scene.add(mapObject3D);
 
+    // 提前计算 animationKey 和 hasPreviousState，供后续使用
+    // 变量名改为 initAnimationKey 和 initHasPreviousState 以避免与其他地方冲突
+    const initAnimationKey = `${mapType}-${geoJson.features?.length || 0}`;
+    const initHasPreviousState = !!cameraStateRef.current[initAnimationKey];
+
     /**
      * 动态地图缩放大小
      */
-    const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
-    
-    // 对于世界地图，计算bounding box并调整位置以居中
-    if (mapType === "world") {
-      const boundingBox = new THREE.Box3().setFromObject(mapObject3D);
-      const center = new THREE.Vector3();
-      boundingBox.getCenter(center);
-      // 将地图对象移动到原点，使地图居中
-      mapObject3D.position.set(-center.x, -center.y, 0);
-    }
+    // 移动到动画逻辑中处理，避免重复声明
+    // const animationKey = `${mapType}-${geoJson.features?.length || 0}`;
+    // const hasPreviousState = !!cameraStateRef.current[animationKey];
+    // const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
+    // ...
 
     /**
      * 绘制 2D 面板 - 只显示地级市标签（不显示省份标签）
@@ -391,6 +399,19 @@ function Map3D(props: Props) {
     controls.enableRotate = false; // 禁止旋转
     controls.enableZoom = true; // 允许缩放
     controls.enablePan = true; // 允许平移
+    controls.enableDamping = true; // 开启阻尼，让相机移动更平滑
+    controls.dampingFactor = 0.05; // 阻尼系数
+    
+    // 如果有之前保存的相机状态，立即恢复
+    // 使用 initAnimationKey
+    if (initHasPreviousState && cameraStateRef.current[initAnimationKey]) {
+      const savedState = cameraStateRef.current[initAnimationKey];
+      camera.position.copy(savedState.position);
+      camera.zoom = savedState.zoom;
+      camera.updateProjectionMatrix();
+      controls.target.copy(savedState.target);
+      controls.update();
+    }
 
     /**
      * 新增光源
@@ -561,14 +582,33 @@ function Map3D(props: Props) {
      * 动画 - 只在首次加载时执行，切换tab时不重新执行
      */
     const animationKey = `${mapType}-${geoJson.features?.length || 0}`;
-    if (!hasAnimatedRef.current[animationKey]) {
-      // 首次加载时，从0开始缩放动画
-      mapObject3D.scale.set(0, 0, 0);
-      gsap.to(mapObject3D.scale, { x: mapScale, y: mapScale, z: 1, duration: 1 });
-      hasAnimatedRef.current[animationKey] = true;
-    } else {
-      // 如果已经动画过，直接设置最终缩放值，不执行动画
+    const hasPreviousState = !!cameraStateRef.current[animationKey];
+    
+    // 计算动态缩放大小
+    const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
+    
+    // 如果有之前的状态，直接设置最终缩放值，不执行动画
+    if (hasPreviousState) {
       mapObject3D.scale.set(mapScale, mapScale, 1);
+    } else {
+      // 如果没有之前的状态（首次加载），才执行动画
+      if (!hasAnimatedRef.current[animationKey]) {
+        mapObject3D.scale.set(0, 0, 0);
+        gsap.to(mapObject3D.scale, { x: mapScale, y: mapScale, z: 1, duration: 1 });
+        hasAnimatedRef.current[animationKey] = true;
+      } else {
+        // 如果已经标记为动画过（但没有保存状态），直接设置缩放
+        mapObject3D.scale.set(mapScale, mapScale, 1);
+      }
+    }
+    
+    // 对于世界地图，计算bounding box并调整位置以居中
+    if (mapType === "world") {
+      const boundingBox = new THREE.Box3().setFromObject(mapObject3D);
+      const center = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      // 将地图对象移动到原点，使地图居中
+      mapObject3D.position.set(-center.x, -center.y, 0);
     }
 
     /**
@@ -586,6 +626,11 @@ function Map3D(props: Props) {
       }
 
       // 雷达功能已移除
+      
+      // 更新控制器（如果开启了阻尼）
+      if (controls.enableDamping) {
+        controls.update();
+      }
 
       // 性能优化：减少raycaster更新频率（每3帧更新一次）
       if (frameCount % 3 === 0) {
@@ -733,6 +778,14 @@ function Map3D(props: Props) {
       });
 
     return () => {
+      // 保存相机状态，以便下次切换回来时恢复
+      const cameraKey = `${mapType}-${geoJson.features?.length || 0}`;
+      cameraStateRef.current[cameraKey] = {
+        position: camera.position.clone(),
+        zoom: camera.zoom,
+        target: controls.target.clone(),
+      };
+      
       // 清理动画帧
       if (animationFrameIdRef.current !== null) {
         cancelAnimationFrame(animationFrameIdRef.current);
