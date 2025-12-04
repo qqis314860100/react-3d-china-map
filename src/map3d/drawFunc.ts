@@ -563,11 +563,11 @@ export const drawCitySpot = (coord: [number, number], mapType: "china" | "world"
 // 标签样式配置（公共配置）
 export const LABEL_STYLE_CONFIG = {
   china: {
-    fontSize: 13,
+    fontSize: 12, // 字体稍小
     color: "#FFD700",
   },
   world: {
-    fontSize: 14, // 世界地图标签稍小一点
+    fontSize: 13, // 世界地图标签稍小一点
     color: "#FFD700",
   }
 };

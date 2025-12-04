@@ -1,65 +1,20 @@
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
-import Map3D, { ProjectionFnParamType } from "./map3d";
+import Map3D from "./map3d";
 import { GeoJsonType } from "./map3d/typed";
 import { WORLD_DISPLAY_CONFIG, WORLD_MAP_PROJECTION } from "./map3d/mapConfig";
+import { PROVINCE_ADCODE_MAP } from "./map3d/constants";
+import { filterPolarRegions } from "./map3d/utils";
+import {
+  ProjectionFnParamType,
+  DistrictConfig,
+  CityConfig,
+  ProvinceConfig,
+  CityGeoJsonData,
+  DistrictGeoJsonData,
+} from "./map3d/types";
 import MapTabs from "./components/MapTabs";
 
-// 配置需要显示的省份和地级市
-export interface DistrictConfig {
-  name: string;
-  url?: string; // 市区链接，可选
-}
-
-export interface CityConfig {
-  name: string;
-  adcode?: number; // 地级市的adcode，用于加载市区数据
-  districts: DistrictConfig[]; // 市区列表
-}
-
-export interface ProvinceConfig {
-  name: string;
-  adcode?: number; // 省份的adcode，用于加载地级市数据
-  cities: CityConfig[];
-}
-
-// 省份adcode映射（用于加载地级市数据）
-const PROVINCE_ADCODE_MAP: { [key: string]: number } = {
-  "北京市": 110000,
-  "天津市": 120000,
-  "河北省": 130000,
-  "山西省": 140000,
-  "内蒙古自治区": 150000,
-  "辽宁省": 210000,
-  "吉林省": 220000,
-  "黑龙江省": 230000,
-  "上海市": 310000,
-  "江苏省": 320000,
-  "浙江省": 330000,
-  "安徽省": 340000,
-  "福建省": 350000,
-  "江西省": 360000,
-  "山东省": 370000,
-  "河南省": 410000,
-  "湖北省": 420000,
-  "湖南省": 430000,
-  "广东省": 440000,
-  "广西壮族自治区": 450000,
-  "海南省": 460000,
-  "重庆市": 500000,
-  "四川省": 510000,
-  "贵州省": 520000,
-  "云南省": 530000,
-  "西藏自治区": 540000,
-  "陕西省": 610000,
-  "甘肃省": 620000,
-  "青海省": 630000,
-  "宁夏回族自治区": 640000,
-  "新疆维吾尔自治区": 650000,
-  "台湾省": 710000,
-  "香港特别行政区": 810000,
-  "澳门特别行政区": 820000,
-};
 
 // 示例配置：只显示这些省份和地级市
 // 注意：省份名称必须与地图数据中的名称完全匹配（包含"市"、"省"等后缀）
@@ -132,20 +87,6 @@ const DISPLAY_CONFIG: ProvinceConfig[] = [
   },
 ];
 
-// 地级市数据接口
-export interface CityGeoJsonData {
-  provinceName: string;
-  cityName: string;
-  geoJson: GeoJsonType;
-}
-
-// 市区数据接口
-export interface DistrictGeoJsonData {
-  provinceName: string;
-  cityName: string;
-  geoJson: GeoJsonType;
-}
-
 type MapType = "china" | "world";
 
 function App() {
@@ -180,7 +121,6 @@ function App() {
   // 加载世界地图数据（过滤掉南极和北极）
   const loadWorldMapData = useCallback(async () => {
     try {
-      // 尝试使用更可靠的数据源
       const response = await axios.get(
         "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson",
         { timeout: 15000 }
@@ -189,99 +129,26 @@ function App() {
       if (response.data && response.data.type === "FeatureCollection") {
         console.log("世界地图数据加载成功，features数量:", response.data.features.length);
         
-        // 改进的过滤逻辑：过滤掉南极和北极
-        const filteredFeatures = response.data.features.filter((feature: any) => {
-          if (!feature.geometry || !feature.geometry.coordinates) {
-            return false;
-          }
-          
-          try {
-            const coordinates = feature.geometry.coordinates;
-            let maxLat = -90;
-            let minLat = 90;
-            let hasValidCoords = false;
-            
-            // 递归检查坐标
-            const checkCoordinates = (coords: any, depth: number = 0): void => {
-              if (!Array.isArray(coords)) return;
-              
-              if (depth > 10) return; // 防止无限递归
-              
-              if (coords.length >= 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-                // 这是一个坐标点 [lng, lat]
-                const lat = coords[1];
-                const lng = coords[0];
-                
-                // 验证坐标有效性
-                if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-                  maxLat = Math.max(maxLat, lat);
-                  minLat = Math.min(minLat, lat);
-                  hasValidCoords = true;
-                }
-              } else {
-                // 这是一个嵌套数组，继续递归
-                coords.forEach((coord: any) => checkCoordinates(coord, depth + 1));
-              }
-            };
-            
-            checkCoordinates(coordinates);
-            
-            // 排除南极（纬度 < -60）和北极（纬度 > 85），但保留有有效坐标的feature
-            if (!hasValidCoords) return false;
-            return minLat > -60 && maxLat < 85;
-          } catch (e) {
-            console.warn("过滤feature时出错:", e);
-            return false;
-          }
-        });
+        // 使用工具函数过滤极地区域
+        const filteredData = filterPolarRegions(response.data);
         
-        console.log("过滤后的features数量:", filteredFeatures.length);
-        
-        if (filteredFeatures.length === 0) {
+        if (filteredData && filteredData.features.length > 0) {
+          console.log("过滤后的features数量:", filteredData.features.length);
+          setWorldGeoJson(filteredData);
+        } else {
           console.warn("过滤后没有features，使用原始数据");
           setWorldGeoJson(response.data);
-        } else {
-          setWorldGeoJson({
-            ...response.data,
-            features: filteredFeatures
-          });
         }
       } else {
         throw new Error("世界地图数据格式不正确");
       }
     } catch (error: any) {
       console.error("加载世界地图数据失败:", error.message || error);
-      
-      // 尝试备用数据源
-      try {
-        console.log("尝试备用数据源...");
-        const response = await axios.get(
-          "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json",
-          { timeout: 15000 }
-        );
-        
-        // 这个数据源可能是TopoJSON格式，需要转换
-        if (response.data && response.data.type === "FeatureCollection") {
-          console.log("备用数据源加载成功");
-          setWorldGeoJson(response.data);
-        } else {
-          // 如果是TopoJSON，先简单处理
-          console.warn("数据可能是TopoJSON格式，尝试直接使用");
-          setWorldGeoJson({
-            type: "FeatureCollection",
-            features: []
-          });
-        }
-      } catch (error2: any) {
-        console.error("备用世界地图数据源也失败:", error2.message || error2);
-        
-        // 如果都失败了，使用一个简单的示例数据
-        console.warn("使用空的世界地图数据，请检查网络连接或数据源");
-        setWorldGeoJson({
-          type: "FeatureCollection",
-          features: []
-        });
-      }
+      console.warn("使用空的世界地图数据，请检查网络连接或数据源");
+      setWorldGeoJson({
+        type: "FeatureCollection",
+        features: []
+      });
     }
   }, []);
 

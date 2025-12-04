@@ -17,39 +17,26 @@ import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 
-// 雷达功能已移除
+// 导入公共模块
 import { initScene } from "./scene";
 import { mapConfig } from "./mapConfig";
 import { initCamera } from "./camera";
 import { initLights } from "./light";
+import { COLORS, UI_CONSTANTS } from "./constants";
+import { setTooltipPosition, hideTooltip } from "./utils";
+import { findPickedObject, restorePickedObjectColor, applyHoverEffect } from "./mouseHandler";
+import {
+  ProjectionFnParamType,
+  CityConfig,
+  ProvinceConfig,
+  CityGeoJsonData,
+  DistrictGeoJsonData,
+  TooltipData,
+} from "./types";
 import * as dat from "dat.gui";
 
-export type ProjectionFnParamType = {
-  center: [number, number];
-  scale: number;
-};
-
-export interface CityConfig {
-  name: string;
-  url?: string;
-}
-
-export interface ProvinceConfig {
-  name: string;
-  cities: CityConfig[];
-}
-
-export interface CityGeoJsonData {
-  provinceName: string;
-  cityName: string;
-  geoJson: GeoJsonType;
-}
-
-export interface DistrictGeoJsonData {
-  provinceName: string;
-  cityName: string;
-  geoJson: GeoJsonType;
-}
+// 重新导出类型，保持向后兼容
+export type { ProjectionFnParamType, CityConfig, ProvinceConfig, CityGeoJsonData, DistrictGeoJsonData };
 
 interface Props {
   geoJson: GeoJsonType;
@@ -82,7 +69,7 @@ function Map3D(props: Props) {
     } 
   }>({});
 
-  const [toolTipData, setToolTipData] = useState<any>({
+  const [toolTipData, setToolTipData] = useState<TooltipData>({
     text: "",
     districts: [],
     showPanel: false,
@@ -405,9 +392,9 @@ function Map3D(props: Props) {
         return;
       }
       
-      // 节流：每3帧更新一次鼠标位置（约50ms）
+      // 节流：使用常量配置
       mouseMoveThrottle++;
-      if (mouseMoveThrottle % 3 !== 0) {
+      if (mouseMoveThrottle % UI_CONSTANTS.MOUSE_MOVE_THROTTLE !== 0) {
         return;
       }
       
@@ -423,115 +410,23 @@ function Map3D(props: Props) {
       });
       const intersects = raycaster.intersectObjects(interactiveObjects, false);
 
-      // 如果存在，则鼠标移出需要重置
+      // 恢复旧对象的颜色
       if (lastPick) {
-        // 检查是否是地级市圆点或标签
-        if (lastPick.object.userData.isCity) {
-          // 地级市圆点恢复原色
-          if (lastPick.object.material && lastPick.object.material.color) {
-            lastPick.object.material.color.set("#FFD700");
-          }
-        } else if (lastPick.object.userData.isChangeColor) {
-          // 省份恢复原色
-          const color = mapConfig.mapColorGradient[Math.floor(Math.random() * 4)];
-          lastPick.object.material[0].color.set(color);
-          lastPick.object.material[0].opacity = mapConfig.mapOpacity;
-        }
-      }
-      lastPick = null;
-      
-      // 优先检查地级市圆点、标签和标签的父对象
-      lastPick = intersects.find(
-        (item: any) => {
-          // 检查对象本身
-          if (item.object.userData.isCity) return true;
-          // 检查父对象（标签可能挂载在父对象上）
-          if (item.object.parent && item.object.parent.userData && item.object.parent.userData.isCity) {
-            return true;
-          }
-          return false;
-        }
-      );
-      
-      // 如果找到的是标签的父对象，使用父对象
-      if (lastPick && lastPick.object.parent && lastPick.object.parent.userData && lastPick.object.parent.userData.isCity) {
-        lastPick = {
-          ...lastPick,
-          object: lastPick.object.parent
-        };
+        restorePickedObjectColor(lastPick);
       }
       
-      // 如果没有找到地级市，再检查省份（但省份不显示面板）
-      if (!lastPick) {
-        lastPick = intersects.find(
-          (item: any) => item.object.userData.isChangeColor
-        );
-      }
+      // 查找新的被拾取对象
+      lastPick = findPickedObject(intersects);
 
+      // 应用新对象的悬浮效果
       if (lastPick) {
-        // 处理地级市悬浮
-        if (lastPick.object.userData.isCity) {
-          const cityData = lastPick.object.userData;
-          if (lastPick.object.material && lastPick.object.material.color) {
-            lastPick.object.material.color.set("#FF6B6B"); // 悬浮时变红色
-          }
-
-          // 保存当前地级市数据
-          currentCityDataRef.current = cityData;
-
-          // 跟随鼠标位置显示面板
-          if (toolTipRef.current && toolTipRef.current.style) {
-            // 在鼠标位置旁边显示，添加偏移避免遮挡
-            const offsetX = 15; // 右侧偏移
-            const offsetY = 15; // 下方偏移
-            toolTipRef.current.style.left = (e.clientX + offsetX) + "px";
-            toolTipRef.current.style.top = (e.clientY + offsetY) + "px";
-            toolTipRef.current.style.visibility = "visible";
-          }
-          
-          // 显示地级市信息和市区列表
-          setToolTipData({
-            text: cityData.cityName,
-            isCity: true,
-            provinceName: cityData.provinceName || cityData.countryName,
-            districts: cityData.districts || [],
-            showPanel: true,
-            isPinned: false,
-            url: cityData.url,
-          });
-        } else {
-          // 处理省份悬浮 - 显示省份名字
-          const properties = lastPick.object.parent.customProperties;
-          if (lastPick.object.material[0]) {
-            lastPick.object.material[0].color.set(mapConfig.mapHoverColor);
-            lastPick.object.material[0].opacity = 1;
-          }
-          
-          // 显示省份面板
-          if (toolTipRef.current && toolTipRef.current.style) {
-            const offsetX = 15;
-            const offsetY = 15;
-            toolTipRef.current.style.left = (e.clientX + offsetX) + "px";
-            toolTipRef.current.style.top = (e.clientY + offsetY) + "px";
-            toolTipRef.current.style.visibility = "visible";
-          }
-          
-          setToolTipData({
-            text: properties.name,
-            isCity: false,
-            provinceName: properties.name,
-            districts: [],
-            showPanel: true, // 省份也显示面板
-          });
+        applyHoverEffect(lastPick, e, toolTipRef, setToolTipData, currentCityDataRef);
+      } else {
+        // 鼠标不在任何对象上，隐藏 Tooltip
+        if (!isHoveringTooltipRef.current) {
+          hideTooltip(toolTipRef.current);
         }
-       } else {
-         // 如果鼠标不在面板上，则隐藏
-         if (!isHoveringTooltipRef.current) {
-           if (toolTipRef.current && toolTipRef.current.style) {
-             toolTipRef.current.style.visibility = "hidden";
-           }
-         }
-       }
+      }
     };
     
      // 移除点击事件 - 只使用悬浮展开面板
