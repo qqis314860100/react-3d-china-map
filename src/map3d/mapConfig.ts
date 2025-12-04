@@ -41,6 +41,7 @@ export interface WorldCityConfig {
   country: string;
   coordinates: [number, number]; // [经度, 纬度]
   url?: string;
+  districts?: any[]; // 区级数据（可选）
 }
 
 // 世界国家配置接口

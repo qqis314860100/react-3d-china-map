@@ -408,14 +408,9 @@ export function generateMapLabel2D(
   // 准备统一格式的城市数据
   const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType, cityGeoJsonData);
   
-  // 调试信息
-  if (mapType === "world") {
-    console.log(`[世界地图] 准备生成 ${cityDataList.length} 个城市标签`, cityDataList);
-  }
-  
-  // 使用统一逻辑创建标签
+  // 使用统一逻辑创建标签（传递 mapType 以使用正确的样式）
   cityDataList.forEach((cityData) => {
-    const cityLabelItem = draw2dLabel(cityData.coord, cityData.cityName, true);
+    const cityLabelItem = draw2dLabel(cityData.coord, cityData.cityName, true, mapType);
     if (cityLabelItem) {
       cityLabelItem.userData = {
         isCity: true,
@@ -425,12 +420,8 @@ export function generateMapLabel2D(
         districts: cityData.districts,
       };
       labelObject2D.add(cityLabelItem);
-    } else {
-      console.warn(`[${mapType}] 标签创建失败:`, cityData.cityName, cityData.coord);
     }
   });
-  
-  console.log(`[${mapType}] 标签生成完成，共 ${labelObject2D.children.length} 个标签`);
   
   return labelObject2D;
 }
@@ -455,9 +446,9 @@ export function generateMapSpot(
   // 准备统一格式的城市数据（复用 prepareCityData 函数）
   const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType, cityGeoJsonData);
   
-  // 使用统一逻辑创建圆点
+  // 使用统一逻辑创建圆点（传递 mapType 以使用正确的尺寸）
   cityDataList.forEach((cityData) => {
-    const citySpotItem = drawCitySpot(cityData.coord);
+    const citySpotItem = drawCitySpot(cityData.coord, mapType);
     if (citySpotItem && citySpotItem.circle && citySpotItem.ring) {
       const cityUserData = {
         isCity: true,
@@ -493,13 +484,36 @@ export function generateMapSpot(
   return { spotObject3D, spotList, citySpotList };
 }
 
-// 绘制地级市圆点（使用不同颜色，更明显好看）
-export const drawCitySpot = (coord: [number, number]) => {
+// 城市圆点配置（公共配置）
+export const CITY_SPOT_CONFIG = {
+  china: {
+    circleRadius: 0.25,
+    innerGlowRadius: 0.2,
+    ringInnerRadius: 0.25,
+    ringOuterRadius: 0.5, // 增大外圆环
+    outerGlowInnerRadius: 0.5,
+    outerGlowOuterRadius: 0.7, // 增大光环
+  },
+  world: {
+    // 世界地图的圆点需要更大，因为地图整体缩放更小
+    circleRadius: 1.0,
+    innerGlowRadius: 0.8,
+    ringInnerRadius: 1.0,
+    ringOuterRadius: 2.0, // 增大外圆环
+    outerGlowInnerRadius: 2.0,
+    outerGlowOuterRadius: 2.8, // 增大光环
+  }
+};
+
+// 绘制地级市/城市圆点（统一逻辑，支持不同地图类型）
+export const drawCitySpot = (coord: [number, number], mapType: "china" | "world" = "china") => {
   if (coord && coord.length) {
+    const config = CITY_SPOT_CONFIG[mapType];
+    
     /**
-     * 绘制圆点 - 地级市使用更明显的金色，更大尺寸
+     * 绘制圆点 - 使用明显的金色
      */
-    const spotGeometry = new THREE.CircleGeometry(0.25, 32); // 性能优化：减少段数
+    const spotGeometry = new THREE.CircleGeometry(config.circleRadius, 32);
     const spotMaterial = new THREE.MeshBasicMaterial({
       color: "#FFD700", // 金色
       side: THREE.DoubleSide,
@@ -510,7 +524,7 @@ export const drawCitySpot = (coord: [number, number]) => {
     circle.position.set(coord[0], -coord[1], mapConfig.spotZIndex);
     
     // 添加发光效果 - 内圈
-    const innerGlowGeometry = new THREE.CircleGeometry(0.2, 32); // 性能优化：减少段数
+    const innerGlowGeometry = new THREE.CircleGeometry(config.innerGlowRadius, 32);
     const innerGlowMaterial = new THREE.MeshBasicMaterial({
       color: "#FFFF00", // 亮黄色
       side: THREE.DoubleSide,
@@ -520,8 +534,8 @@ export const drawCitySpot = (coord: [number, number]) => {
     const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
     innerGlow.position.set(coord[0], -coord[1], mapConfig.spotZIndex + 0.01);
 
-    // 圆环 - 地级市使用更明显的颜色和更大尺寸
-    const ringGeometry = new THREE.RingGeometry(0.25, 0.4, 32); // 性能优化：减少段数
+    // 圆环 - 使用更明显的颜色和更大尺寸
+    const ringGeometry = new THREE.RingGeometry(config.ringInnerRadius, config.ringOuterRadius, 32);
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: "#FFD700", // 金色，更亮
       side: THREE.DoubleSide,
@@ -532,7 +546,7 @@ export const drawCitySpot = (coord: [number, number]) => {
     ring.position.set(coord[0], -coord[1], mapConfig.spotZIndex);
     
     // 添加外圈发光效果
-    const outerGlowGeometry = new THREE.RingGeometry(0.4, 0.5, 32); // 性能优化：减少段数
+    const outerGlowGeometry = new THREE.RingGeometry(config.outerGlowInnerRadius, config.outerGlowOuterRadius, 32);
     const outerGlowMaterial = new THREE.MeshBasicMaterial({
       color: "#FFA500", // 橙色
       side: THREE.DoubleSide,
@@ -546,14 +560,33 @@ export const drawCitySpot = (coord: [number, number]) => {
   }
 };
 
-// 绘制二维标签
-export const draw2dLabel = (coord: [number, number], proviceName: string, isCity: boolean = false) => {
+// 标签样式配置（公共配置）
+export const LABEL_STYLE_CONFIG = {
+  china: {
+    fontSize: 13,
+    color: "#FFD700",
+  },
+  world: {
+    fontSize: 14, // 世界地图标签稍小一点
+    color: "#FFD700",
+  }
+};
+
+// 绘制二维标签（统一逻辑，支持不同地图类型）
+export const draw2dLabel = (
+  coord: [number, number], 
+  proviceName: string, 
+  isCity: boolean = false,
+  mapType: "china" | "world" = "china"
+) => {
   if (coord && coord.length && coord[0] !== undefined && coord[1] !== undefined) {
-    // 地级市标签样式 - 明显且与省份区别开
+    const styleConfig = LABEL_STYLE_CONFIG[mapType];
+    
+    // 城市标签样式 - 明显且与省份区别开
     const labelStyle = isCity 
       ? `
-        color: #FFD700;
-        font-size: 13px;
+        color: ${styleConfig.color};
+        font-size: ${styleConfig.fontSize}px;
         font-weight: bold;
         text-shadow: 
           0 0 6px rgba(255, 215, 0, 0.8),

@@ -360,15 +360,15 @@ function App() {
     }
   }, [cityGeoJsonData]);
 
-  // 将世界地图配置转换为Map3D需要的格式
+  // 将世界地图配置转换为Map3D需要的格式（保持完整数据）
   const worldDisplayConfig = WORLD_DISPLAY_CONFIG.map((country) => ({
     name: country.name,
     cities: country.cities.map((city) => ({
       name: city.name,
-      coordinates: city.coordinates,
+      coordinates: city.coordinates, // 保留坐标
       url: city.url,
-      districts: [], // 世界地图暂时不支持区级数据
-      adcode: undefined,
+      districts: city.districts || [], // 保留区级数据
+      country: city.country, // 保留国家名称
     })),
   }));
 
