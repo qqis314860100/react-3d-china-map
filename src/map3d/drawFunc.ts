@@ -128,61 +128,9 @@ export function drawExtrudeMesh(
   return { mesh, line };
 }
 
-// 根据国家名称或坐标判断大洲
+// 根据国家名称和坐标判断大洲并返回颜色（用于世界地图的国家着色）
 function getContinentColor(countryName: string, centroid?: [number, number]): string {
-  
-  // 根据国家名称判断（简化版，可以根据需要扩展）
-  const countryToContinent: { [key: string]: string } = {
-    // 亚洲国家
-    "China": "Asia", "Japan": "Asia", "India": "Asia", "South Korea": "Asia", 
-    "North Korea": "Asia", "Thailand": "Asia", "Vietnam": "Asia", "Indonesia": "Asia",
-    "Malaysia": "Asia", "Philippines": "Asia", "Singapore": "Asia", "Myanmar": "Asia",
-    "Cambodia": "Asia", "Laos": "Asia", "Mongolia": "Asia", "Kazakhstan": "Asia",
-    "Uzbekistan": "Asia", "Turkmenistan": "Asia", "Kyrgyzstan": "Asia", "Tajikistan": "Asia",
-    "Afghanistan": "Asia", "Pakistan": "Asia", "Bangladesh": "Asia", "Sri Lanka": "Asia",
-    "Nepal": "Asia", "Bhutan": "Asia", "Iran": "Asia", "Iraq": "Asia", "Saudi Arabia": "Asia",
-    "United Arab Emirates": "Asia", "Israel": "Asia", "Turkey": "Asia",
-    
-    // 欧洲国家
-    "Russia": "Europe", "Germany": "Europe", "France": "Europe", "United Kingdom": "Europe",
-    "Italy": "Europe", "Spain": "Europe", "Poland": "Europe", "Ukraine": "Europe", "Romania": "Europe",
-    "Netherlands": "Europe", "Belgium": "Europe", "Greece": "Europe", "Portugal": "Europe",
-    "Czech Republic": "Europe", "Hungary": "Europe", "Sweden": "Europe", "Belarus": "Europe",
-    "Austria": "Europe", "Switzerland": "Europe", "Bulgaria": "Europe", "Serbia": "Europe",
-    "Denmark": "Europe", "Finland": "Europe", "Slovakia": "Europe", "Norway": "Europe",
-    "Ireland": "Europe", "Croatia": "Europe", "Bosnia and Herzegovina": "Europe",
-    
-    // 北美洲国家
-    "United States": "North America", "Canada": "North America", "Mexico": "North America",
-    "Guatemala": "North America", "Cuba": "North America", "Haiti": "North America",
-    "Dominican Republic": "North America", "Jamaica": "North America", "Panama": "North America",
-    "Costa Rica": "North America", "Honduras": "North America", "El Salvador": "North America",
-    "Nicaragua": "North America", "Belize": "North America",
-    
-    // 南美洲国家
-    "Brazil": "South America", "Argentina": "South America", "Peru": "South America",
-    "Colombia": "South America", "Venezuela": "South America", "Chile": "South America",
-    "Ecuador": "South America", "Bolivia": "South America", "Paraguay": "South America",
-    "Uruguay": "South America", "Guyana": "South America", "Suriname": "South America",
-    
-    // 非洲国家
-    "Egypt": "Africa", "South Africa": "Africa", "Nigeria": "Africa", "Kenya": "Africa",
-    "Ethiopia": "Africa", "Tanzania": "Africa", "Algeria": "Africa", "Sudan": "Africa",
-    "Morocco": "Africa", "Angola": "Africa", "Ghana": "Africa", "Mozambique": "Africa",
-    "Madagascar": "Africa", "Cameroon": "Africa", "Ivory Coast": "Africa", "Niger": "Africa",
-    
-    // 大洋洲国家
-    "Australia": "Oceania", "New Zealand": "Oceania", "Papua New Guinea": "Oceania",
-    "Fiji": "Oceania", "Solomon Islands": "Oceania", "Vanuatu": "Oceania",
-  };
-  
-  // 尝试根据国家名称匹配
-  const continent = countryToContinent[countryName];
-  if (continent && CONTINENT_COLORS[continent]) {
-    return CONTINENT_COLORS[continent];
-  }
-  
-  // 如果无法匹配，根据坐标判断（简化版）
+  // 简单的坐标判断（用于世界地图国家着色）
   if (centroid) {
     const [lng, lat] = centroid;
     // 亚洲：东经60-150，北纬10-60
@@ -214,12 +162,11 @@ function getContinentColor(countryName: string, centroid?: [number, number]): st
   return CONTINENT_COLORS["default"];
 }
 
-// 生成地图3D模型
+// 生成地图3D模型（简化版，不再依赖 cityGeoJsonData）
 export function generateMapObject3D(
   mapdata: GeoJsonType,
   projectionFnParam: ProjectionFnParamType,
   displayConfig?: any[],
-  cityGeoJsonData?: any[],
   mapType: "china" | "world" = "china"
 ) {
   // 地图对象
@@ -307,7 +254,7 @@ export function generateMapObject3D(
   return { mapObject3D, label2dData };
 }
 
-// 准备城市数据（统一格式）- 提取公共逻辑
+// 准备城市数据（统一格式）- 简化逻辑，只使用配置中的坐标
 interface CityLabelData {
   coord: [number, number];
   cityName: string;
@@ -319,8 +266,7 @@ interface CityLabelData {
 function prepareCityData(
   displayConfig: any[],
   projectionFnParam: ProjectionFnParamType,
-  mapType: "china" | "world",
-  cityGeoJsonData?: any[]
+  mapType: "china" | "world"
 ): CityLabelData[] {
   const cityDataList: CityLabelData[] = [];
   const { center, scale } = projectionFnParam;
@@ -329,73 +275,34 @@ function prepareCityData(
     .scale(scale)
     .translate([0, 0]);
   
-  if (mapType === "world") {
-    // 世界地图：直接使用配置中的坐标
-    displayConfig.forEach((countryConfig: any) => {
-      if (countryConfig.cities && countryConfig.cities.length > 0) {
-        countryConfig.cities.forEach((cityConfig: any) => {
-          if (cityConfig.coordinates) {
-            const cityCoord = projectionFn(cityConfig.coordinates);
-            if (cityCoord) {
-              cityDataList.push({
-                coord: cityCoord,
-                cityName: cityConfig.name,
-                parentName: countryConfig.name,
-                url: cityConfig.url,
-                districts: cityConfig.districts || [],
-              });
-            }
-          }
-        });
-      }
-    });
-  } else if (mapType === "china" && cityGeoJsonData) {
-    // 中国地图：从 GeoJSON 数据中获取真实坐标
-    const provinceConfigMap = new Map();
-    displayConfig.forEach((config: any) => {
-      provinceConfigMap.set(config.name, config);
-    });
-    
-    cityGeoJsonData.forEach((cityData: any) => {
-      const provinceName = cityData.provinceName;
-      const provinceConfig = provinceConfigMap.get(provinceName);
-      
-      if (!provinceConfig || !provinceConfig.cities) return;
-      
-      const cityGeoJson = cityData.geoJson;
-      if (!cityGeoJson || !cityGeoJson.features) return;
-      
-      provinceConfig.cities.forEach((cityConfig: any) => {
-        const cityFeature = cityGeoJson.features.find((f: any) => 
-          f.properties.name === cityConfig.name
-        );
-        
-        if (cityFeature && cityFeature.properties.centroid) {
-          const cityCoord = projectionFn(cityFeature.properties.centroid);
+  // 统一逻辑：直接使用配置中的坐标（不再查找 GeoJSON）
+  displayConfig.forEach((parentConfig: any) => {
+    if (parentConfig.cities && parentConfig.cities.length > 0) {
+      parentConfig.cities.forEach((cityConfig: any) => {
+        if (cityConfig.coordinates) {
+          const cityCoord = projectionFn(cityConfig.coordinates);
           if (cityCoord) {
             cityDataList.push({
               coord: cityCoord,
               cityName: cityConfig.name,
-              parentName: provinceName,
+              parentName: parentConfig.name,
               url: cityConfig.url,
               districts: cityConfig.districts || [],
             });
           }
         }
       });
-    });
-  }
+    }
+  });
   
   return cityDataList;
 }
 
-// 生成地图2D标签 - 只显示城市标签（中国地图和世界地图统一逻辑）
+// 生成地图2D标签 - 只显示城市标签（统一逻辑，简化版）
 export function generateMapLabel2D(
   label2dData: any, 
   displayConfig?: any[], 
-  cityGeoJsonData?: any[],
   projectionFnParam?: ProjectionFnParamType,
-  districtGeoJsonData?: any[],
   mapType: "china" | "world" = "china"
 ) {
   const labelObject2D = new THREE.Object3D();
@@ -405,8 +312,8 @@ export function generateMapLabel2D(
     return labelObject2D;
   }
   
-  // 准备统一格式的城市数据
-  const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType, cityGeoJsonData);
+  // 准备统一格式的城市数据（只使用配置中的坐标）
+  const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType);
   
   // 使用统一逻辑创建标签（传递 mapType 以使用正确的样式）
   cityDataList.forEach((cityData) => {
@@ -426,11 +333,10 @@ export function generateMapLabel2D(
   return labelObject2D;
 }
 
-// 生成地图spot点位 - 只显示城市圆点（中国地图和世界地图统一逻辑）
+// 生成地图spot点位 - 只显示城市圆点（统一逻辑，简化版）
 export function generateMapSpot(
   label2dData: any, 
   displayConfig?: any[], 
-  cityGeoJsonData?: any[],
   projectionFnParam?: ProjectionFnParamType,
   mapType: "china" | "world" = "china"
 ) {
@@ -443,8 +349,8 @@ export function generateMapSpot(
     return { spotObject3D, spotList, citySpotList };
   }
   
-  // 准备统一格式的城市数据（复用 prepareCityData 函数）
-  const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType, cityGeoJsonData);
+  // 准备统一格式的城市数据（只使用配置中的坐标）
+  const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType);
   
   // 使用统一逻辑创建圆点（传递 mapType 以使用正确的尺寸）
   cityDataList.forEach((cityData) => {

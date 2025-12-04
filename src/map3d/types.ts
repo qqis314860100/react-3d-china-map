@@ -15,37 +15,22 @@ export interface DistrictConfig {
   url?: string; // 区级链接
 }
 
-// 城市配置
+// 城市配置（统一格式，中国地图和世界地图都使用）
 export interface CityConfig {
   name: string;
-  adcode?: number; // 城市的adcode（中国地图）
-  coordinates?: [number, number]; // 城市坐标（世界地图）
+  coordinates: [number, number]; // 城市坐标（经度，纬度）- 必填
   url?: string;
-  districts?: DistrictConfig[]; // 区级列表
-  country?: string; // 所属国家（世界地图）
+  districts?: DistrictConfig[]; // 区级列表（可选，用于显示详情）
 }
 
-// 省份/国家配置
+// 省份/国家配置（统一格式）
 export interface ProvinceConfig {
   name: string;
-  adcode?: number; // 省份的adcode（中国地图）
   cities: CityConfig[];
 }
 
 // ==================== GeoJSON 数据相关 ====================
-// 城市 GeoJSON 数据
-export interface CityGeoJsonData {
-  provinceName: string;
-  cityName: string;
-  geoJson: GeoJsonType;
-}
-
-// 区级 GeoJSON 数据
-export interface DistrictGeoJsonData {
-  provinceName: string;
-  cityName: string;
-  geoJson: GeoJsonType;
-}
+// 注：cityGeoJsonData 和 districtGeoJsonData 已废弃，改用静态配置
 
 // ==================== 事件处理相关 ====================
 // Tooltip 数据

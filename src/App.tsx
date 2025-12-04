@@ -10,79 +10,48 @@ import {
   DistrictConfig,
   CityConfig,
   ProvinceConfig,
-  CityGeoJsonData,
-  DistrictGeoJsonData,
 } from "./map3d/types";
 import MapTabs from "./components/MapTabs";
 
 
-// 示例配置：只显示这些省份和地级市
-// 注意：省份名称必须与地图数据中的名称完全匹配（包含"市"、"省"等后缀）
+// 中国地图城市配置（只需要配置城市名称和经纬度）
 const DISPLAY_CONFIG: ProvinceConfig[] = [
   {
     name: "北京市",
-    adcode: 110000,
     cities: [
-      { 
-        name: "东城区", 
-        adcode: 110101,
-        districts: [
-          { name: "东华门街道", url: "https://example.com/donghuamen" },
-          { name: "景山街道", url: "https://example.com/jingshan" },
-        ]
-      },
-      { 
-        name: "西城区", 
-        adcode: 110102,
-        districts: [
-          { name: "西长安街街道", url: "https://example.com/xichanganjie" },
-          { name: "新街口街道", url: "https://example.com/xinjiekou" },
-        ]
-      },
+      { name: "北京", coordinates: [116.4074, 39.9042], url: "https://example.com/beijing" },
     ],
   },
   {
     name: "上海市",
-    adcode: 310000,
     cities: [
-      { 
-        name: "黄浦区", 
-        adcode: 310101,
-        districts: [
-          { name: "南京东路街道", url: "https://example.com/nanjingdonglu" },
-          { name: "外滩街道", url: "https://example.com/waitan" },
-        ]
-      },
-      { 
-        name: "徐汇区", 
-        adcode: 310104,
-        districts: [
-          { name: "湖南路街道", url: "https://example.com/hunanlu" },
-          { name: "天平路街道", url: "https://example.com/tianpinglu" },
-        ]
-      },
+      { name: "上海", coordinates: [121.4737, 31.2304], url: "https://example.com/shanghai" },
     ],
   },
   {
     name: "广东省",
-    adcode: 440000,
     cities: [
-      { 
-        name: "广州市", 
-        adcode: 440100,
-        districts: [
-          { name: "越秀区", url: "https://example.com/yuexiu" },
-          { name: "天河区", url: "https://example.com/tianhe" },
-        ]
-      },
-      { 
-        name: "深圳市", 
-        adcode: 440300,
-        districts: [
-          { name: "福田区", url: "https://example.com/futian" },
-          { name: "南山区", url: "https://example.com/nanshan" },
-        ]
-      },
+      { name: "广州", coordinates: [113.2644, 23.1291], url: "https://example.com/guangzhou" },
+      { name: "深圳", coordinates: [114.0579, 22.5431], url: "https://example.com/shenzhen" },
+    ],
+  },
+  {
+    name: "福建省",
+    cities: [
+      { name: "宁德市", coordinates: [119.5479, 26.6617], url: "https://example.com/ningde" },
+      { name: "福州", coordinates: [119.2965, 26.0745], url: "https://example.com/fuzhou" },
+    ],
+  },
+  {
+    name: "浙江省",
+    cities: [
+      { name: "杭州", coordinates: [120.1551, 30.2741], url: "https://example.com/hangzhou" },
+    ],
+  },
+  {
+    name: "江苏省",
+    cities: [
+      { name: "南京", coordinates: [118.7969, 32.0603], url: "https://example.com/nanjing" },
     ],
   },
 ];
@@ -93,8 +62,6 @@ function App() {
   const [mapType, setMapType] = useState<MapType>("china"); // 默认显示中国地图
   const [geoJson, setGeoJson] = useState<GeoJsonType>();
   const [worldGeoJson, setWorldGeoJson] = useState<GeoJsonType>();
-  const [cityGeoJsonData, setCityGeoJsonData] = useState<CityGeoJsonData[]>([]);
-  const [districtGeoJsonData, setDistrictGeoJsonData] = useState<DistrictGeoJsonData[]>([]);
   const [mapAdCode] = useState<number>(100000);
   const [projectionFnParam] = useState<ProjectionFnParamType>({
     center: [104.0, 37.5],
@@ -160,84 +127,6 @@ function App() {
     }
   }, [mapType, loadWorldMapData, worldGeoJson]);
 
-  // 加载地级市数据
-  useEffect(() => {
-    const loadCityData = async () => {
-      const cityDataPromises = DISPLAY_CONFIG.map(async (province) => {
-        const adcode = province.adcode || PROVINCE_ADCODE_MAP[province.name];
-        if (!adcode) {
-          console.warn(`未找到省份 ${province.name} 的adcode`);
-          return null;
-        }
-
-        try {
-          const response = await axios.get(
-            `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`
-          );
-          return {
-            provinceName: province.name,
-            cityName: "", // 将在Map3D中处理
-            geoJson: response.data,
-          };
-        } catch (error) {
-          console.error(`加载 ${province.name} 地级市数据失败:`, error);
-          return null;
-        }
-      });
-
-      const results = await Promise.all(cityDataPromises);
-      const validResults = results.filter((r) => r !== null) as CityGeoJsonData[];
-      setCityGeoJsonData(validResults);
-    };
-
-    loadCityData();
-  }, []);
-
-  // 加载市区数据
-  useEffect(() => {
-    const loadDistrictData = async () => {
-      const districtDataPromises: Promise<DistrictGeoJsonData | null>[] = [];
-      
-      DISPLAY_CONFIG.forEach((province) => {
-        province.cities.forEach((city) => {
-          if (city.adcode) {
-            districtDataPromises.push(
-              axios.get(`https://geo.datav.aliyun.com/areas_v3/bound/${city.adcode}_full.json`)
-                .then((response) => ({
-                  provinceName: province.name,
-                  cityName: city.name,
-                  geoJson: response.data,
-                }))
-                .catch((error) => {
-                  console.error(`加载 ${city.name} 市区数据失败:`, error);
-                  return null;
-                })
-            );
-          }
-        });
-      });
-
-      const results = await Promise.all(districtDataPromises);
-      const validResults = results.filter((r) => r !== null) as DistrictGeoJsonData[];
-      setDistrictGeoJsonData(validResults);
-    };
-
-    if (cityGeoJsonData.length > 0) {
-      loadDistrictData();
-    }
-  }, [cityGeoJsonData]);
-
-  // 将世界地图配置转换为Map3D需要的格式（保持完整数据）
-  const worldDisplayConfig = WORLD_DISPLAY_CONFIG.map((country) => ({
-    name: country.name,
-    cities: country.cities.map((city) => ({
-      name: city.name,
-      coordinates: city.coordinates, // 保留坐标
-      url: city.url,
-      districts: city.districts || [], // 保留区级数据
-      country: city.country, // 保留国家名称
-    })),
-  }));
 
   return (
     <div style={{ width: "100%", height: "100vh", position: "relative" }}>
@@ -252,13 +141,11 @@ function App() {
         top: 0,
         left: 0
       }}>
-        {geoJson && cityGeoJsonData.length > 0 && districtGeoJsonData.length > 0 && (
+        {geoJson && (
           <Map3D
             geoJson={geoJson}
             projectionFnParam={projectionFnParam}
             displayConfig={DISPLAY_CONFIG}
-            cityGeoJsonData={cityGeoJsonData}
-            districtGeoJsonData={districtGeoJsonData}
             mapType="china"
           />
         )}
@@ -277,9 +164,7 @@ function App() {
           <Map3D
             geoJson={worldGeoJson}
             projectionFnParam={worldProjectionFnParam}
-            displayConfig={worldDisplayConfig}
-            cityGeoJsonData={[]}
-            districtGeoJsonData={[]}
+            displayConfig={WORLD_DISPLAY_CONFIG}
             mapType="world"
           />
         ) : (
