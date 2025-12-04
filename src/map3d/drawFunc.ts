@@ -13,8 +13,7 @@ import {
   ExtendObject3D,
 } from "./typed";
 import { ProjectionFnParamType } from ".";
-import { mapConfig } from "./mapConfig";
-import { CONTINENT_COLORS } from "../worldMapConfig";
+import { mapConfig, CONTINENT_COLORS } from "./mapConfig";
 
 export function getDynamicMapScale(
   mapObject3D: THREE.Object3D,
@@ -70,8 +69,12 @@ export function drawExtrudeMesh(
   });
 
   // 性能优化：使用更简单的材质，减少计算
+  // 确定最终使用的颜色
+  // 使用 mapConfig.mapColorGradient 的长度来随机选择颜色，实现多彩效果
+  const finalColor = color || mapConfig.mapColorGradient[Math.floor(Math.random() * mapConfig.mapColorGradient.length)];
+
   const material = new THREE.MeshLambertMaterial({
-    color: color || mapConfig.mapColorGradient[Math.floor(Math.random() * 4)], // 使用传入的颜色或随机颜色
+    color: finalColor, // 使用传入的颜色或随机颜色
     transparent: mapConfig.mapTransparent,
     opacity: mapConfig.mapOpacity,
   });
@@ -105,9 +108,10 @@ export function drawExtrudeMesh(
   });
 
   const mesh: any = new THREE.Mesh(geometry, [material, materialSide]);
-  // userData 存储自定义属性
+  // userData 存储自定义属性，保存原始颜色用于恢复
   mesh.userData = {
     isChangeColor: true,
+    originalColor: finalColor, // 保存原始颜色
   };
 
   // 边框线，赋值空间点坐标，3个一组
@@ -303,7 +307,89 @@ export function generateMapObject3D(
   return { mapObject3D, label2dData };
 }
 
-// 生成地图2D标签 - 只显示地级市标签（不显示省份标签）
+// 准备城市数据（统一格式）- 提取公共逻辑
+interface CityLabelData {
+  coord: [number, number];
+  cityName: string;
+  parentName: string; // provinceName or countryName
+  url?: string;
+  districts?: any[];
+}
+
+function prepareCityData(
+  displayConfig: any[],
+  projectionFnParam: ProjectionFnParamType,
+  mapType: "china" | "world",
+  cityGeoJsonData?: any[]
+): CityLabelData[] {
+  const cityDataList: CityLabelData[] = [];
+  const { center, scale } = projectionFnParam;
+  const projectionFn = d3.geoMercator()
+    .center(center)
+    .scale(scale)
+    .translate([0, 0]);
+  
+  if (mapType === "world") {
+    // 世界地图：直接使用配置中的坐标
+    displayConfig.forEach((countryConfig: any) => {
+      if (countryConfig.cities && countryConfig.cities.length > 0) {
+        countryConfig.cities.forEach((cityConfig: any) => {
+          if (cityConfig.coordinates) {
+            const cityCoord = projectionFn(cityConfig.coordinates);
+            if (cityCoord) {
+              cityDataList.push({
+                coord: cityCoord,
+                cityName: cityConfig.name,
+                parentName: countryConfig.name,
+                url: cityConfig.url,
+                districts: cityConfig.districts || [],
+              });
+            }
+          }
+        });
+      }
+    });
+  } else if (mapType === "china" && cityGeoJsonData) {
+    // 中国地图：从 GeoJSON 数据中获取真实坐标
+    const provinceConfigMap = new Map();
+    displayConfig.forEach((config: any) => {
+      provinceConfigMap.set(config.name, config);
+    });
+    
+    cityGeoJsonData.forEach((cityData: any) => {
+      const provinceName = cityData.provinceName;
+      const provinceConfig = provinceConfigMap.get(provinceName);
+      
+      if (!provinceConfig || !provinceConfig.cities) return;
+      
+      const cityGeoJson = cityData.geoJson;
+      if (!cityGeoJson || !cityGeoJson.features) return;
+      
+      provinceConfig.cities.forEach((cityConfig: any) => {
+        const cityFeature = cityGeoJson.features.find((f: any) => 
+          f.properties.name === cityConfig.name
+        );
+        
+        if (cityFeature && cityFeature.properties.centroid) {
+          const cityCoord = projectionFn(cityFeature.properties.centroid);
+          if (cityCoord) {
+            cityDataList.push({
+              coord: cityCoord,
+              cityName: cityConfig.name,
+              parentName: provinceName,
+              url: cityConfig.url,
+              districts: cityConfig.districts || [],
+            });
+          }
+        }
+      });
+    });
+  }
+  
+  return cityDataList;
+}
+
+// 生成地图2D标签 - 只显示城市标签（中国地图和世界地图统一逻辑）
 export function generateMapLabel2D(
   label2dData: any, 
   displayConfig?: any[], 
@@ -314,123 +400,42 @@ export function generateMapLabel2D(
 ) {
   const labelObject2D = new THREE.Object3D();
   
-  // 如果没有配置，不显示任何标签
-  if (!displayConfig || displayConfig.length === 0) {
+  // 如果没有配置或投影参数，不显示任何标签
+  if (!displayConfig || displayConfig.length === 0 || !projectionFnParam) {
     return labelObject2D;
   }
   
-  const displayProvinceNames = displayConfig.map((p: any) => p.name);
+  // 准备统一格式的城市数据
+  const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType, cityGeoJsonData);
   
-  // 创建省份名称到配置的映射
-  const provinceConfigMap = new Map();
-  displayConfig.forEach((config: any) => {
-    provinceConfigMap.set(config.name, config);
+  // 调试信息
+  if (mapType === "world") {
+    console.log(`[世界地图] 准备生成 ${cityDataList.length} 个城市标签`, cityDataList);
+  }
+  
+  // 使用统一逻辑创建标签
+  cityDataList.forEach((cityData) => {
+    const cityLabelItem = draw2dLabel(cityData.coord, cityData.cityName, true);
+    if (cityLabelItem) {
+      cityLabelItem.userData = {
+        isCity: true,
+        cityName: cityData.cityName,
+        ...(mapType === "world" ? { countryName: cityData.parentName } : { provinceName: cityData.parentName }),
+        url: cityData.url,
+        districts: cityData.districts,
+      };
+      labelObject2D.add(cityLabelItem);
+    } else {
+      console.warn(`[${mapType}] 标签创建失败:`, cityData.cityName, cityData.coord);
+    }
   });
   
-  // 创建地级市数据映射：省份名 -> 地级市GeoJson数据
-  const cityDataMap = new Map();
-  if (cityGeoJsonData) {
-    cityGeoJsonData.forEach((data: any) => {
-      cityDataMap.set(data.provinceName, data.geoJson);
-    });
-  }
-  
-  // 创建投影函数用于地级市坐标转换
-  let cityProjectionFn: any = null;
-  if (projectionFnParam) {
-    const { center, scale } = projectionFnParam;
-    cityProjectionFn = d3.geoMercator()
-      .center(center)
-      .scale(scale)
-      .translate([0, 0]);
-  }
-  
-  let labelCount = 0;
-  
-  // 不显示省份标签，只显示地级市标签
-  
-  // 世界地图模式：使用直接提供的坐标
-  if (mapType === "world" && projectionFnParam) {
-    const { center, scale } = projectionFnParam;
-    const worldProjectionFn = d3.geoMercator()
-      .center(center)
-      .scale(scale)
-      .translate([0, 0]);
-    
-    displayConfig?.forEach((countryConfig: any) => {
-      if (countryConfig.cities && countryConfig.cities.length > 0) {
-        countryConfig.cities.forEach((cityConfig: any) => {
-          if (cityConfig.coordinates) {
-            const cityCoord = worldProjectionFn(cityConfig.coordinates);
-            if (cityCoord) {
-              const cityLabelItem = draw2dLabel(cityCoord, cityConfig.name, true);
-              if (cityLabelItem) {
-                cityLabelItem.userData = {
-                  isCity: true,
-                  cityName: cityConfig.name,
-                  countryName: countryConfig.name,
-                  url: cityConfig.url,
-                  districts: cityConfig.districts || [],
-                };
-                labelObject2D.add(cityLabelItem);
-                labelCount++;
-              }
-            }
-          }
-        });
-      }
-    });
-  }
-  
-  // 中国地图模式：显示地级市标签（使用真实坐标）
-  if (mapType === "china" && cityGeoJsonData && cityProjectionFn) {
-    cityGeoJsonData.forEach((cityData: any) => {
-      const provinceName = cityData.provinceName;
-      const provinceConfig = provinceConfigMap.get(provinceName);
-      
-      if (!provinceConfig || !provinceConfig.cities) {
-        return;
-      }
-      
-      const cityGeoJson = cityData.geoJson;
-      if (!cityGeoJson || !cityGeoJson.features) {
-        return;
-      }
-      
-      // 遍历地级市数据，找到匹配的地级市
-      provinceConfig.cities.forEach((cityConfig: any) => {
-        const cityFeature = cityGeoJson.features.find((f: any) => 
-          f.properties.name === cityConfig.name
-        );
-        
-        if (cityFeature && cityFeature.properties.centroid) {
-          const cityCoord = cityProjectionFn(cityFeature.properties.centroid);
-          if (cityCoord) {
-            // 获取该地级市的市区列表
-            const districts = cityConfig.districts || [];
-            
-            const cityLabelItem = draw2dLabel(cityCoord, cityConfig.name, true);
-            if (cityLabelItem) {
-              // 存储地级市信息到userData，包括市区列表
-              cityLabelItem.userData = {
-                isCity: true,
-                cityName: cityConfig.name,
-                provinceName: provinceName,
-                districts: districts, // 市区列表
-              };
-              labelObject2D.add(cityLabelItem);
-              labelCount++;
-            }
-          }
-        }
-      });
-    });
-  }
+  console.log(`[${mapType}] 标签生成完成，共 ${labelObject2D.children.length} 个标签`);
   
   return labelObject2D;
 }
 
-// 生成地图spot点位 - 只显示配置中的省份和地级市（使用真实坐标）
+// 生成地图spot点位 - 只显示城市圆点（中国地图和世界地图统一逻辑）
 export function generateMapSpot(
   label2dData: any, 
   displayConfig?: any[], 
@@ -442,138 +447,48 @@ export function generateMapSpot(
   const spotList: any = [];
   const citySpotList: any = [];
   
-  // 如果没有配置，不显示任何圆点
-  if (!displayConfig || displayConfig.length === 0) {
+  // 如果没有配置或投影参数，不显示任何圆点
+  if (!displayConfig || displayConfig.length === 0 || !projectionFnParam) {
     return { spotObject3D, spotList, citySpotList };
   }
   
-  const displayProvinceNames = displayConfig.map((p: any) => p.name);
+  // 准备统一格式的城市数据（复用 prepareCityData 函数）
+  const cityDataList = prepareCityData(displayConfig, projectionFnParam, mapType, cityGeoJsonData);
   
-  // 不显示省份圆点（center标签）- 只显示地级市圆点
-  
-  // 世界地图模式：使用直接提供的坐标
-  if (mapType === "world" && projectionFnParam) {
-    const { center, scale } = projectionFnParam;
-    const worldProjectionFn = d3.geoMercator()
-      .center(center)
-      .scale(scale)
-      .translate([0, 0]);
-    
-    displayConfig?.forEach((countryConfig: any) => {
-      if (countryConfig.cities && countryConfig.cities.length > 0) {
-        countryConfig.cities.forEach((cityConfig: any) => {
-          if (cityConfig.coordinates) {
-            const cityCoord = worldProjectionFn(cityConfig.coordinates);
-            if (cityCoord) {
-              const citySpotItem = drawCitySpot(cityCoord);
-              if (citySpotItem && citySpotItem.circle && citySpotItem.ring) {
-                const cityUserData = {
-                  isCity: true,
-                  cityName: cityConfig.name,
-                  countryName: countryConfig.name,
-                  url: cityConfig.url,
-                  districts: cityConfig.districts || [],
-                };
-                
-                citySpotItem.circle.userData = cityUserData;
-                citySpotItem.ring.userData = cityUserData;
-                if (citySpotItem.innerGlow) {
-                  citySpotItem.innerGlow.userData = cityUserData;
-                }
-                if (citySpotItem.outerGlow) {
-                  citySpotItem.outerGlow.userData = cityUserData;
-                }
-                
-                spotObject3D.add(citySpotItem.circle);
-                spotObject3D.add(citySpotItem.ring);
-                if (citySpotItem.innerGlow) {
-                  spotObject3D.add(citySpotItem.innerGlow);
-                }
-                if (citySpotItem.outerGlow) {
-                  spotObject3D.add(citySpotItem.outerGlow);
-                }
-                citySpotList.push(citySpotItem.ring);
-              }
-            }
-          }
-        });
-      }
-    });
-  }
-  
-  // 中国地图模式：显示地级市圆点（使用真实坐标）
-  if (mapType === "china" && cityGeoJsonData && projectionFnParam) {
-    const { center, scale } = projectionFnParam;
-    const cityProjectionFn = d3.geoMercator()
-      .center(center)
-      .scale(scale)
-      .translate([0, 0]);
-    
-    const provinceConfigMap = new Map();
-    displayConfig.forEach((config: any) => {
-      provinceConfigMap.set(config.name, config);
-    });
-    
-    cityGeoJsonData.forEach((cityData: any) => {
-      const provinceName = cityData.provinceName;
-      const provinceConfig = provinceConfigMap.get(provinceName);
+  // 使用统一逻辑创建圆点
+  cityDataList.forEach((cityData) => {
+    const citySpotItem = drawCitySpot(cityData.coord);
+    if (citySpotItem && citySpotItem.circle && citySpotItem.ring) {
+      const cityUserData = {
+        isCity: true,
+        cityName: cityData.cityName,
+        ...(mapType === "world" ? { countryName: cityData.parentName } : { provinceName: cityData.parentName }),
+        url: cityData.url,
+        districts: cityData.districts,
+      };
       
-      if (!provinceConfig || !provinceConfig.cities) {
-        return;
+      // 为所有元素添加用户数据
+      citySpotItem.circle.userData = cityUserData;
+      citySpotItem.ring.userData = cityUserData;
+      if (citySpotItem.innerGlow) {
+        citySpotItem.innerGlow.userData = cityUserData;
+      }
+      if (citySpotItem.outerGlow) {
+        citySpotItem.outerGlow.userData = cityUserData;
       }
       
-      const cityGeoJson = cityData.geoJson;
-      if (!cityGeoJson || !cityGeoJson.features) {
-        return;
+      // 添加到场景
+      spotObject3D.add(citySpotItem.circle);
+      spotObject3D.add(citySpotItem.ring);
+      if (citySpotItem.innerGlow) {
+        spotObject3D.add(citySpotItem.innerGlow);
       }
-      
-      // 遍历地级市数据，找到匹配的地级市并添加圆点
-      provinceConfig.cities.forEach((cityConfig: any) => {
-        const cityFeature = cityGeoJson.features.find((f: any) => 
-          f.properties.name === cityConfig.name
-        );
-        
-        if (cityFeature && cityFeature.properties.centroid) {
-          const cityCoord = cityProjectionFn(cityFeature.properties.centroid);
-          if (cityCoord) {
-            // 为地级市创建圆点和圆环（使用不同的颜色区分）
-            const districts = cityConfig.districts || [];
-            const citySpotItem = drawCitySpot(cityCoord);
-            if (citySpotItem && citySpotItem.circle && citySpotItem.ring) {
-              // 存储地级市信息，包括市区列表
-              const cityUserData = {
-                isCity: true,
-                cityName: cityConfig.name,
-                provinceName: provinceName,
-                districts: districts, // 市区列表
-              };
-              
-              // 为所有元素添加用户数据
-              citySpotItem.circle.userData = cityUserData;
-              citySpotItem.ring.userData = cityUserData;
-              if (citySpotItem.innerGlow) {
-                citySpotItem.innerGlow.userData = cityUserData;
-              }
-              if (citySpotItem.outerGlow) {
-                citySpotItem.outerGlow.userData = cityUserData;
-              }
-              
-              // 添加到场景
-              spotObject3D.add(citySpotItem.circle);
-              spotObject3D.add(citySpotItem.ring);
-              if (citySpotItem.innerGlow) {
-                spotObject3D.add(citySpotItem.innerGlow);
-              }
-              if (citySpotItem.outerGlow) {
-                spotObject3D.add(citySpotItem.outerGlow);
-              }
-              citySpotList.push(citySpotItem.ring);
-            }
-          }
-        }
-      });
-    });
-  }
+      if (citySpotItem.outerGlow) {
+        spotObject3D.add(citySpotItem.outerGlow);
+      }
+      citySpotList.push(citySpotItem.ring);
+    }
+  });
   
   return { spotObject3D, spotList, citySpotList };
 }

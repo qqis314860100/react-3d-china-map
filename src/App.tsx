@@ -2,7 +2,7 @@ import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import Map3D, { ProjectionFnParamType } from "./map3d";
 import { GeoJsonType } from "./map3d/typed";
-import { WORLD_DISPLAY_CONFIG, WORLD_MAP_PROJECTION } from "./worldMapConfig";
+import { WORLD_DISPLAY_CONFIG, WORLD_MAP_PROJECTION } from "./map3d/mapConfig";
 import MapTabs from "./components/MapTabs";
 
 // 配置需要显示的省份和地级市

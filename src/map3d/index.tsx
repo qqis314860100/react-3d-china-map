@@ -21,6 +21,7 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 import { initScene } from "./scene";
 import { mapConfig } from "./mapConfig";
 import { initCamera } from "./camera";
+import { initLights } from "./light";
 import * as dat from "dat.gui";
 
 export type ProjectionFnParamType = {
@@ -205,48 +206,6 @@ function Map3D(props: Props) {
     dracoLoader.setDecoderPath("/draco/");
     loader.setDRACOLoader(dracoLoader);
 
-    // loader.load("/models/coneUncompression.glb", (glb) => {
-    loader.load("/models/cone.glb", (glb) => {
-      // 如果没有配置，不添加任何模型动画
-      if (!displayConfig || displayConfig.length === 0) {
-        return;
-      }
-      
-      // 只为配置中的省份添加模型动画
-      const displayProvinceNames = displayConfig.map((p: any) => p.name);
-      label2dData.forEach((item: any) => {
-        // 只显示配置中的省份
-        if (!displayProvinceNames.includes(item.featureName)) {
-          return;
-        }
-        
-        const { featureCenterCoord } = item;
-        const clonedModel = glb.scene.clone();
-        const mixer = new THREE.AnimationMixer(clonedModel);
-        const clonedAnimations = glb.animations.map((clip) => {
-          return clip.clone();
-        });
-        clonedAnimations.forEach((clip) => {
-          mixer.clipAction(clip).play();
-        });
-
-        // 添加每个model的mixer
-        modelMixer.push(mixer);
-
-        // 设置模型位置
-        clonedModel.position.set(
-          featureCenterCoord[0],
-          -featureCenterCoord[1],
-          mapConfig.spotZIndex
-        );
-        // 设置模型大小
-        clonedModel.scale.set(0.3, 0.3, 0.6);
-        // clonedModel.rotateX(-Math.PI / 8);
-        modelObject3D.add(clonedModel);
-      });
-
-      mapObject3D.add(modelObject3D);
-    });
 
     /**
      * 绘制连线
@@ -414,11 +373,10 @@ function Map3D(props: Props) {
     }
 
     /**
-     * 新增光源
+     * 初始化光源 - 使用公共灯光函数
      */
-    const light = new THREE.PointLight(0xffffff, 1.5);
-    light.position.set(0, -5, 30);
-    scene.add(light);
+    const { ambientLight, pointLight } = initLights(scene);
+    const light = pointLight; // 保持向后兼容，用于 dat.GUI 控制
 
     // 视窗伸缩
     const onResizeEvent = () => {
