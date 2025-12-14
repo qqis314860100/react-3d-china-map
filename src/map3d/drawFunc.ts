@@ -29,15 +29,16 @@ export function getDynamicMapScale(
   const size = new THREE.Vector3();
   boundingBox.getSize(size);
   
-  // 世界地图使用更大的缩放因子，确保地图铺满屏幕
-  const scaleFactor = mapType === "world" ? 300 : 400;
+  // scaleFactor 数值越大，地图越小
+  // 世界地图需要更大的 scaleFactor 才能完整显示
+  const scaleFactor = mapType === "world" ? 800 : 400;
   const scale =
     Math.round(Math.sqrt(refArea / (size.x * size.y * scaleFactor))) +
     parseFloat((Math.random() + 0.5).toFixed(2));
   
-  // 世界地图确保最小缩放值
-  if (mapType === "world" && scale < 0.8) {
-    return 0.8;
+  // 确保缩放值在合理范围内
+  if (mapType === "world") {
+    return Math.max(0.5, Math.min(scale, 1.2));
   }
   
   return scale;
