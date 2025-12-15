@@ -1,14 +1,10 @@
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
-import Map3D from "./map3d";
 import { GeoJsonType } from "./map3d/typed";
 import { WORLD_DISPLAY_CONFIG, WORLD_MAP_PROJECTION } from "./map3d/mapConfig";
-import { PROVINCE_ADCODE_MAP } from "./map3d/constants";
 import { filterPolarRegions } from "./map3d/utils";
 import {
   ProjectionFnParamType,
-  DistrictConfig,
-  CityConfig,
   ProvinceConfig,
 } from "./map3d/types";
 import MapTabs from "./components/MapTabs";
@@ -56,10 +52,7 @@ const DISPLAY_CONFIG: ProvinceConfig[] = [
   },
 ];
 
-type MapType = "china" | "world";
-
 function App() {
-  const [mapType, setMapType] = useState<MapType>("china"); // 默认显示中国地图
   const [geoJson, setGeoJson] = useState<GeoJsonType>();
   const [worldGeoJson, setWorldGeoJson] = useState<GeoJsonType>();
   const [mapAdCode] = useState<number>(100000);
@@ -78,12 +71,10 @@ function App() {
     setGeoJson(data);
   }, []);
 
-  // 加载中国地图数据
+  // 加载中国地图数据（组件挂载时加载）
   useEffect(() => {
-    if (mapType === "china") {
-      queryMapData(mapAdCode); // 默认的中国adcode码
-    }
-  }, [mapAdCode, mapType, queryMapData]);
+    queryMapData(mapAdCode); // 默认的中国adcode码
+  }, [mapAdCode, queryMapData]);
 
   // 加载世界地图数据（过滤掉南极和北极）
   const loadWorldMapData = useCallback(async () => {
@@ -119,72 +110,23 @@ function App() {
     }
   }, []);
 
-  // 加载世界地图数据
+  // 加载世界地图数据（组件挂载时加载）
   useEffect(() => {
-    // 只有在没有数据时才加载
-    if (mapType === "world" && !worldGeoJson) {
-      loadWorldMapData();
-    }
-  }, [mapType, loadWorldMapData, worldGeoJson]);
+    loadWorldMapData();
+  }, [loadWorldMapData]);
 
 
   return (
     <div style={{ width: "100%", height: "100vh", position: "relative" }}>
-      <MapTabs activeTab={mapType} onTabChange={setMapType} />
-      
-      {/* 中国地图 - 使用CSS控制显示/隐藏，保持状态 */}
-      <div style={{ 
-        width: "100%", 
-        height: "100%", 
-        display: mapType === "china" ? "block" : "none",
-        position: "absolute",
-        top: 0,
-        left: 0
-      }}>
-        {geoJson && (
-          <Map3D
-            geoJson={geoJson}
-            projectionFnParam={projectionFnParam}
-            displayConfig={DISPLAY_CONFIG}
-            mapType="china"
-          />
-        )}
-      </div>
-
-      {/* 世界地图 - 使用CSS控制显示/隐藏，保持状态 */}
-      <div style={{ 
-        width: "100%", 
-        height: "100%", 
-        display: mapType === "world" ? "block" : "none",
-        position: "absolute",
-        top: 0,
-        left: 0
-      }}>
-        {worldGeoJson && worldGeoJson.features && worldGeoJson.features.length > 0 ? (
-          <Map3D
-            geoJson={worldGeoJson}
-            projectionFnParam={worldProjectionFnParam}
-            displayConfig={WORLD_DISPLAY_CONFIG}
-            mapType="world"
-          />
-        ) : (
-          <div style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            color: "#fff",
-            fontSize: "16px",
-            zIndex: 1000,
-            textAlign: "center"
-          }}>
-            <div>正在加载世界地图数据...</div>
-            <div style={{ fontSize: "12px", marginTop: "10px", opacity: 0.7 }}>
-              如果长时间未加载，请检查网络连接
-            </div>
-          </div>
-        )}
-      </div>
+      <MapTabs 
+        chinaGeoJson={geoJson}
+        worldGeoJson={worldGeoJson}
+        chinaProjection={projectionFnParam}
+        worldProjection={worldProjectionFnParam}
+        chinaDisplayConfig={DISPLAY_CONFIG}
+        worldDisplayConfig={WORLD_DISPLAY_CONFIG}
+        defaultIndex={0}
+      />
     </div>
   );
 }

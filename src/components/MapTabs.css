@@ -1,3 +1,16 @@
+/* 覆盖 react-tabs 默认样式 */
+.map-tabs-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.custom-tabs {
+  width: 100%;
+  height: 100%;
+}
+
+/* Tab列表容器 */
 .map-tabs {
   position: absolute;
   top: 20px;
@@ -9,14 +22,14 @@
   border-radius: 12px;
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.tabs-wrapper {
-  position: relative;
   display: flex;
   gap: 0;
+  list-style: none;
+  margin: 0;
+  border-bottom: none;
 }
 
+/* Tab按钮 */
 .tab-btn {
   display: flex;
   align-items: center;
@@ -29,18 +42,20 @@
   font-weight: 500;
   cursor: pointer;
   border-radius: 8px;
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
   outline: none;
   position: relative;
-  z-index: 2;
 }
 
 .tab-btn:hover {
   color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-btn.active {
   color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
 }
 
 .tab-icon {
@@ -53,28 +68,22 @@
   letter-spacing: 0.5px;
 }
 
-/* 滑动指示器 */
-.tab-indicator {
-  position: absolute;
-  bottom: 0;
+/* TabPanel样式 - 使用z-index控制层级，保持所有panel都可见 */
+.react-tabs__tab-panel {
+  width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-              width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-}
-
-.tab-indicator::before {
-  content: '';
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
-  border-radius: 8px;
+  z-index: 1;
   pointer-events: none;
+  display: block; /* 覆盖 react-tabs 默认 display:none */
+}
+
+/* 激活的TabPanel显示在最上层并接收鼠标事件 */
+.react-tabs__tab-panel--selected {
+  z-index: 10 !important;
+  pointer-events: auto !important;
+  display: block !important;
 }
 

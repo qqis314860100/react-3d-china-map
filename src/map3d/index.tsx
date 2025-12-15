@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
@@ -348,4 +348,4 @@ function Map3D(props: Props) {
   );
 }
 
-export default Map3D;
+export default React.memo(Map3D);

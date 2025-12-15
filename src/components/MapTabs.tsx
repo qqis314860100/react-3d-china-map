@@ -1,74 +1,75 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
+import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
+import "react-tabs/style/react-tabs.css";
 import "./MapTabs.css";
+import Map3D from "../map3d";
+import { GeoJsonType } from "../map3d/typed";
+import { ProjectionFnParamType, ProvinceConfig } from "../map3d/types";
 
 interface MapTabsProps {
-  activeTab: "china" | "world";
-  onTabChange: (tab: "china" | "world") => void;
+  chinaGeoJson?: GeoJsonType;
+  worldGeoJson?: GeoJsonType;
+  chinaProjection: ProjectionFnParamType;
+  worldProjection: ProjectionFnParamType;
+  chinaDisplayConfig: ProvinceConfig[];
+  worldDisplayConfig: ProvinceConfig[];
+  defaultIndex?: number;
 }
 
-const MapTabs: React.FC<MapTabsProps> = ({ activeTab, onTabChange }) => {
-  const tabsContainerRef = useRef<HTMLDivElement>(null);
-  const chinaTabRef = useRef<HTMLButtonElement>(null);
-  const worldTabRef = useRef<HTMLButtonElement>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({
-    left: 0,
-    width: 0,
-  });
-
-  useEffect(() => {
-    // 更新指示器位置
-    const updateIndicator = () => {
-      const activeRef = activeTab === "china" ? chinaTabRef : worldTabRef;
-      if (activeRef.current && tabsContainerRef.current) {
-        const tabRect = activeRef.current.getBoundingClientRect();
-        const containerRect = tabsContainerRef.current.getBoundingClientRect();
-        setIndicatorStyle({
-          left: tabRect.left - containerRect.left,
-          width: tabRect.width,
-        });
-      }
-    };
-
-    // 延迟执行以确保DOM已渲染
-    const timer = setTimeout(updateIndicator, 0);
-    
-    // 监听窗口大小变化
-    window.addEventListener("resize", updateIndicator);
-    
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", updateIndicator);
-    };
-  }, [activeTab]);
+const MapTabs: React.FC<MapTabsProps> = ({
+  chinaGeoJson,
+  worldGeoJson,
+  chinaProjection,
+  worldProjection,
+  chinaDisplayConfig,
+  worldDisplayConfig,
+  defaultIndex = 0,
+}) => {
+  const [selectedIndex, setSelectedIndex] = useState(defaultIndex);
 
   return (
-    <div className="map-tabs" ref={tabsContainerRef}>
-      <div className="tabs-wrapper">
-        <button
-          ref={chinaTabRef}
-          className={`tab-btn ${activeTab === "china" ? "active" : ""}`}
-          onClick={() => onTabChange("china")}
-        >
-          <span className="tab-icon">🇨🇳</span>
-          <span className="tab-text">中国地图</span>
-        </button>
-        <button
-          ref={worldTabRef}
-          className={`tab-btn ${activeTab === "world" ? "active" : ""}`}
-          onClick={() => onTabChange("world")}
-        >
-          <span className="tab-icon">🌍</span>
-          <span className="tab-text">世界地图</span>
-        </button>
-        {/* 滑动指示器 */}
-        <div
-          className="tab-indicator"
-          style={{
-            left: `${indicatorStyle.left}px`,
-            width: `${indicatorStyle.width}px`,
-          }}
-        />
-      </div>
+    <div className="map-tabs-container">
+      <Tabs
+        selectedIndex={selectedIndex}
+        onSelect={setSelectedIndex}
+        forceRenderTabPanel
+        className="custom-tabs">
+        <TabList className="map-tabs">
+          <Tab className="tab-btn" selectedClassName="active">
+            <span className="tab-icon">🇨🇳</span>
+            <span className="tab-text">中国地图</span>
+          </Tab>
+          <Tab className="tab-btn" selectedClassName="active">
+            <span className="tab-icon">🌍</span>
+            <span className="tab-text">世界地图</span>
+          </Tab>
+        </TabList>
+
+        <TabPanel>
+          {chinaGeoJson ? (
+            <Map3D
+              geoJson={chinaGeoJson}
+              projectionFnParam={chinaProjection}
+              displayConfig={chinaDisplayConfig}
+              mapType="china"
+            />
+          ) : (
+            <div className="map-placeholder">加载中国地图中...</div>
+          )}
+        </TabPanel>
+        <TabPanel>
+          {worldGeoJson && worldGeoJson.features?.length > 0 ? (
+            <Map3D
+              geoJson={worldGeoJson}
+              projectionFnParam={worldProjection}
+              displayConfig={worldDisplayConfig}
+              mapType="world"
+            />
+          ) : (
+            <div className="map-placeholder">加载世界地图中...</div>
+          )}
+        </TabPanel>
+      </Tabs>
     </div>
   );
 };
