@@ -44,11 +44,20 @@ export function getDynamicMapScale(
   return scale;
 }
 
+// 中国配色（与世界主色调接近的蓝色系）
+// 让中国地图更接近世界地图观感：更“暗”的蓝 + 更深侧面
+const CHINA_COLOR_THEME = {
+  base: "#356AA5",
+  side1: "#244A7A",
+  side2: "#1B365A",
+};
+
 // 绘制挤出的材质
 export function drawExtrudeMesh(
   point: [number, number][],
   projectionFn: any,
-  color?: string
+  color?: string,
+  mapType: "china" | "world" = "china"
 ): any {
   const shape = new THREE.Shape();
   const pointsArray = [];
@@ -69,10 +78,10 @@ export function drawExtrudeMesh(
     curveSegments: 8, // 减少曲线段数（默认12），提高性能
   });
 
-  // 性能优化：使用更简单的材质，减少计算
-  // 确定最终使用的颜色
-  // 使用 mapConfig.mapColorGradient 的长度来随机选择颜色，实现多彩效果
-  const finalColor = color || mapConfig.mapColorGradient[Math.floor(Math.random() * mapConfig.mapColorGradient.length)];
+  // 颜色选择：
+  // - china：统一单色（由上层传入 CHINA_COLOR_THEME.base）
+  // - world：允许按传入色（大洲色）或配置渐变
+  const finalColor = color || mapConfig.mapColorGradient[0];
 
   const material = new THREE.MeshLambertMaterial({
     color: finalColor, // 使用传入的颜色或随机颜色
@@ -83,10 +92,10 @@ export function drawExtrudeMesh(
   const materialSide = new THREE.ShaderMaterial({
     uniforms: {
       color1: {
-        value: new THREE.Color(mapConfig.mapSideColor1),
+        value: new THREE.Color(mapType === "china" ? CHINA_COLOR_THEME.side1 : mapConfig.mapSideColor1),
       },
       color2: {
-        value: new THREE.Color(mapConfig.mapSideColor2),
+        value: new THREE.Color(mapType === "china" ? CHINA_COLOR_THEME.side2 : mapConfig.mapSideColor2),
       },
     },
     vertexShader: `
@@ -221,19 +230,23 @@ export function generateMapObject3D(
     // 如果有配置且当前省份不在配置中，跳过绘制（但保留label2dData用于后续过滤）
     // 仍然绘制所有省份的地图，但只有配置的省份有标记和动画
 
-    // 获取颜色（世界地图根据大洲，中国地图使用随机颜色）
+    // 获取颜色
+    // - world: 按大洲上色（每个国家/区域统一色）
+    // - china: 统一单色（避免“这一块深一块浅”）
     let featureColor: string | undefined;
     if (mapType === "world") {
       const countryName = featureName || basicFeatureItem.properties.name || "";
       const centroid = basicFeatureItem.properties.centroid as [number, number] | undefined;
       featureColor = getContinentColor(countryName, centroid);
+    } else {
+      featureColor = CHINA_COLOR_THEME.base;
     }
 
     // MultiPolygon 类型
     if (featureType === "MultiPolygon") {
       featureCoords.forEach((multiPolygon: [number, number][][]) => {
         multiPolygon.forEach((polygon: [number, number][]) => {
-          const { mesh, line } = drawExtrudeMesh(polygon, projectionFn, featureColor);
+          const { mesh, line } = drawExtrudeMesh(polygon, projectionFn, featureColor, mapType);
           provinceMapObject3D.add(mesh);
           provinceMapObject3D.add(line);
         });
@@ -243,7 +256,7 @@ export function generateMapObject3D(
     // Polygon 类型
     if (featureType === "Polygon") {
       featureCoords.forEach((polygon: [number, number][]) => {
-        const { mesh, line } = drawExtrudeMesh(polygon, projectionFn, featureColor);
+          const { mesh, line } = drawExtrudeMesh(polygon, projectionFn, featureColor, mapType);
         provinceMapObject3D.add(mesh);
         provinceMapObject3D.add(line);
       });
