@@ -13,8 +13,9 @@ import {
   ExtendObject3D,
 } from "./typed";
 import { ProjectionFnParamType } from ".";
-import { mapConfig, CONTINENT_COLORS } from "./mapConfig";
+import { mapConfig } from "./mapConfig";
 
+// 获取地图的动态缩放值
 export function getDynamicMapScale(
   mapObject3D: THREE.Object3D,
   containerRef: any,
@@ -28,14 +29,17 @@ export function getDynamicMapScale(
   // 获取包围盒的尺寸
   const size = new THREE.Vector3();
   boundingBox.getSize(size);
+  console.log("mapType", mapType);
 
   // scaleFactor 数值越大，地图越小
   // 世界地图需要更大的 scaleFactor 才能完整显示
-  const scaleFactor = mapType === "world" ? 800 : 400;
+  const scaleFactor = mapType === "world" ? 500 : 400;
+
   const scale =
     Math.round(Math.sqrt(refArea / (size.x * size.y * scaleFactor))) +
     parseFloat((Math.random() + 0.5).toFixed(2));
 
+  console.log("scaleFactor", scaleFactor, "sacle", scale, "mapType", mapType);
   // 确保缩放值在合理范围内
   if (mapType === "world") {
     return Math.max(0.5, Math.min(scale, 1.2));
@@ -70,7 +74,7 @@ export function drawExtrudeMesh(
   });
 
   const material = new THREE.MeshLambertMaterial({
-    color: mapConfig.mapColor, // 使用传入的颜色或随机颜色
+    color: mapConfig.mapColor,
     transparent: mapConfig.mapTransparent,
     opacity: mapConfig.mapOpacity,
   });
@@ -123,45 +127,6 @@ export function drawExtrudeMesh(
 
   return { mesh, line };
 }
-
-// // 根据国家名称和坐标判断大洲并返回颜色（用于世界地图的国家着色）
-// function getContinentColor(
-//   countryName: string,
-//   centroid?: [number, number]
-// ): string {
-//   // 简单的坐标判断（用于世界地图国家着色）
-//   if (centroid) {
-//     const [lng, lat] = centroid;
-//     // 亚洲：东经60-150，北纬10-60
-//     if (lng >= 60 && lng <= 150 && lat >= 10 && lat <= 60) {
-//       return CONTINENT_COLORS["Asia"] || CONTINENT_COLORS["default"];
-//     }
-//     // 欧洲：西经10-东经40，北纬35-70
-//     if (lng >= -10 && lng <= 40 && lat >= 35 && lat <= 70) {
-//       return CONTINENT_COLORS["Europe"] || CONTINENT_COLORS["default"];
-//     }
-//     // 北美洲：西经170-西经20，北纬10-70
-//     if (lng >= -170 && lng <= -20 && lat >= 10 && lat <= 70) {
-//       return CONTINENT_COLORS["North America"] || CONTINENT_COLORS["default"];
-//     }
-//     // 南美洲：西经80-西经30，南纬60-北纬15
-//     if (lng >= -80 && lng <= -30 && lat >= -60 && lat <= 15) {
-//       return CONTINENT_COLORS["South America"] || CONTINENT_COLORS["default"];
-//     }
-//     // 非洲：西经20-东经50，南纬35-北纬40
-//     if (lng >= -20 && lng <= 50 && lat >= -35 && lat <= 40) {
-//       return CONTINENT_COLORS["Africa"] || CONTINENT_COLORS["default"];
-//     }
-//     // 大洋洲：东经110-180，南纬50-北纬10
-//     if (lng >= 110 && lng <= 180 && lat >= -50 && lat <= 10) {
-//       return CONTINENT_COLORS["Oceania"] || CONTINENT_COLORS["default"];
-//     }
-//   }
-
-//   return CONTINENT_COLORS["default"];
-// }
-
-// 生成地图3D模型（简化版，不再依赖 cityGeoJsonData）
 export function generateMapObject3D(
   mapdata: GeoJsonType,
   projectionFnParam: ProjectionFnParamType,
@@ -184,8 +149,6 @@ export function generateMapObject3D(
     .translate(mapType === "world" ? [0, 0] : [0, 0]); // 世界地图和中国地图都使用[0,0]作为初始translate
 
   const label2dData: any = []; // 存储自定义 2d 标签数据
-
-  // 移除调试日志，提高性能
 
   // 每个省的数据
   basicFeatures.forEach((basicFeatureItem: GeoJsonFeature) => {
@@ -213,7 +176,8 @@ export function generateMapObject3D(
       });
     }
 
-    // MultiPolygon 类型
+    // MultiPolygon 类型 多个多边形（如带飞地的行政区） 三维数组 [[[lng,lat]]]
+
     if (featureType === "MultiPolygon") {
       featureCoords.forEach((multiPolygon: [number, number][][]) => {
         multiPolygon.forEach((polygon: [number, number][]) => {
@@ -228,7 +192,7 @@ export function generateMapObject3D(
       });
     }
 
-    // Polygon 类型
+    // Polygon 类型 单个连续的多边形（如圆形区域） 二维数组 [[lng,lat]]
     if (featureType === "Polygon") {
       featureCoords.forEach((polygon: [number, number][]) => {
         const { mesh, line } = drawExtrudeMesh(
@@ -247,7 +211,6 @@ export function generateMapObject3D(
   return { mapObject3D, label2dData };
 }
 
-// 准备城市数据（统一格式）- 简化逻辑，只使用配置中的坐标
 interface CityLabelData {
   coord: [number, number];
   cityName: string;
@@ -269,7 +232,6 @@ function prepareCityData(
     .scale(scale)
     .translate([0, 0]);
 
-  // 统一逻辑：直接使用配置中的坐标（不再查找 GeoJSON）
   displayConfig.forEach((parentConfig: any) => {
     if (parentConfig.cities && parentConfig.cities.length > 0) {
       parentConfig.cities.forEach((cityConfig: any) => {
