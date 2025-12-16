@@ -3,6 +3,9 @@
   z-index: 999;
   visibility: hidden;
   pointer-events: auto;
+  cursor: default;
+  isolation: isolate;
+  transition: filter 120ms ease, box-shadow 120ms ease;
 
   background: #010209;
   border-radius: 10px;
@@ -16,6 +19,26 @@
   line-height: 1.35;
 }
 
+.tooltip > * {
+  position: relative;
+  z-index: 1;
+}
+
+.tooltip::before {
+  /* 扩大 hover 热区（不挡点击）：放在内容下层，仅在“外扩区域”接住鼠标 */
+  content: "";
+  position: absolute;
+  inset: -12px;
+  background: transparent;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+.tooltip:hover {
+  /* hover 时给一点提示：更“可交互”的感觉 */
+  filter: brightness(1.03);
+}
+
 .tooltip--city {
   min-width: 240px;
   max-width: 380px;
@@ -23,11 +46,19 @@
   box-shadow: 0 10px 30px rgba(255, 215, 0, 0.22);
 }
 
+.tooltip--city:hover {
+  box-shadow: 0 14px 36px rgba(255, 215, 0, 0.28);
+}
+
 .tooltip--province {
   min-width: 160px;
   max-width: 260px;
   border: 2px solid #3b93e6;
   box-shadow: 0 10px 30px rgba(59, 147, 230, 0.22);
+}
+
+.tooltip--province:hover {
+  box-shadow: 0 14px 36px rgba(59, 147, 230, 0.28);
 }
 
 .tooltip__title {

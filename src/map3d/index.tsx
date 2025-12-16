@@ -55,6 +55,8 @@ function Map3D(props: Props) {
   const currentCityDataRef = useRef<any>(null);
   const lastPickRef = useRef<any>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  // Tooltip 隐藏“宽限期”：用于从地图目标移动到 Tooltip（避免一离开就闪没）
+  const tooltipGraceUntilRef = useRef<number>(0);
 
   const [toolTipData, setToolTipData] = useState<TooltipData>({
     text: "",
@@ -217,6 +219,11 @@ function Map3D(props: Props) {
       let mouseMoveThrottle = 0;
       const onMouseMoveEvent = (e: MouseEvent) => {
         if (isHoveringTooltipRef.current) return;
+        // Tooltip 已显示时，给用户一点时间把鼠标移入 Tooltip，避免瞬间消失
+        const tooltipVisible =
+          !!toolTipRef.current?.style &&
+          toolTipRef.current.style.visibility === "visible";
+        if (tooltipVisible && Date.now() < tooltipGraceUntilRef.current) return;
 
         mouseMoveThrottle++;
         if (mouseMoveThrottle % UI_CONSTANTS.MOUSE_MOVE_THROTTLE !== 0) return;
@@ -236,23 +243,43 @@ function Map3D(props: Props) {
           false
         );
 
-        if (lastPickRef.current) {
-          restorePickedObjectColor(lastPickRef.current);
+        const prevPicked = lastPickRef.current;
+        const prevObject = prevPicked?.object;
+        const nextPicked = findPickedObject(intersects);
+        const nextObject = nextPicked?.object;
+
+        // 只有目标发生变化时，才恢复旧目标颜色（避免同一目标下频繁闪烁）
+        if (prevPicked && prevObject && (!nextObject || nextObject !== prevObject)) {
+          restorePickedObjectColor(prevPicked);
         }
 
-        lastPickRef.current = findPickedObject(intersects);
+        lastPickRef.current = nextPicked;
 
-        if (lastPickRef.current) {
-          applyHoverEffect(
-            lastPickRef.current,
+        if (nextPicked) {
+          // 命中目标后，设置宽限时间，方便用户移动到 tooltip
+          tooltipGraceUntilRef.current = Date.now() + 500;
+
+          const isSameTarget = prevObject && nextObject === prevObject;
+          const isTooltipVisibleNow =
+            !!toolTipRef.current?.style &&
+            toolTipRef.current.style.visibility === "visible";
+
+          // 关键：同一目标悬浮时不重复更新 tooltip 位置（避免 tooltip 跟着鼠标“逃跑”）
+          if (!isSameTarget || !isTooltipVisibleNow) {
+            applyHoverEffect(
+              nextPicked,
             e,
             toolTipRef,
             setToolTipData,
             currentCityDataRef
           );
+          }
         } else {
           if (!isHoveringTooltipRef.current) {
-            hideTooltip(toolTipRef.current);
+            // 超过宽限期才隐藏（否则用户从目标移动到 tooltip 会很难）
+            if (Date.now() >= tooltipGraceUntilRef.current) {
+              hideTooltip(toolTipRef.current);
+            }
           }
         }
       };
