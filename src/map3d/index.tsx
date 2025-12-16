@@ -4,15 +4,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 import * as d3 from "d3";
 import gsap from "gsap";
-import * as dat from "dat.gui";
-
 import ToolTip from "../tooltip";
 import Loading from "./components/Loading";
 import { GeoJsonType } from "./typed";
 import { initScene } from "./scene";
 import { initCamera } from "./camera";
 import { initLights } from "./light";
-import { mapConfig } from "./mapConfig";
 import { UI_CONSTANTS } from "./constants";
 import { hideTooltip } from "./utils";
 import {
@@ -44,8 +41,13 @@ interface Props {
 }
 
 function Map3D(props: Props) {
-  const { geoJson, projectionFnParam, displayConfig, mapType = "china" } = props;
-  
+  const {
+    geoJson,
+    projectionFnParam,
+    displayConfig,
+    mapType = "china",
+  } = props;
+
   const mapRef = useRef<HTMLDivElement>(null);
   const map2dRef = useRef<HTMLDivElement>(null);
   const toolTipRef = useRef<any>();
@@ -53,7 +55,7 @@ function Map3D(props: Props) {
   const currentCityDataRef = useRef<any>(null);
   const lastPickRef = useRef<any>(null);
   const animationFrameIdRef = useRef<number | null>(null);
-  
+
   const [toolTipData, setToolTipData] = useState<TooltipData>({
     text: "",
     districts: [],
@@ -80,7 +82,7 @@ function Map3D(props: Props) {
       });
       renderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      
+
       while (currentDom.firstChild) {
         currentDom.removeChild(currentDom.firstChild);
       }
@@ -90,7 +92,7 @@ function Map3D(props: Props) {
       labelRenderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
       labelRenderer.domElement.style.position = "absolute";
       labelRenderer.domElement.style.top = "0px";
-      
+
       while (labelDom.firstChild) {
         labelDom.removeChild(labelDom.firstChild);
       }
@@ -125,24 +127,33 @@ function Map3D(props: Props) {
 
       const modelMixer: any = [];
 
+      // 飞线和飞点flyspot的容器
       const flyObject3D = new THREE.Object3D();
+      // 存储所有飞点对象
       const flySpotList: any = [];
-      
+
       if (displayConfig && displayConfig.length > 0 && mapType === "china") {
         const { center, scale } = projectionFnParam;
-        const projectionFn = d3.geoMercator().center(center).scale(scale).translate([0, 0]);
-        
+        const projectionFn = d3
+          .geoMercator()
+          .center(center)
+          .scale(scale)
+          .translate([0, 0]);
+
         let ningdeCoord: [number, number] | null = null;
+        // ...坐标计算...
         displayConfig.forEach((provinceConfig: any) => {
           if (provinceConfig.name === "福建省" && provinceConfig.cities) {
-            const ningdeCity = provinceConfig.cities.find((city: any) => city.name === "宁德市");
+            const ningdeCity = provinceConfig.cities.find(
+              (city: any) => city.name === "宁德市"
+            );
             if (ningdeCity?.coordinates) {
               const coord = projectionFn(ningdeCity.coordinates);
               if (coord) ningdeCoord = coord;
             }
           }
         });
-        
+
         if (ningdeCoord) {
           displayConfig.forEach((provinceConfig: any) => {
             provinceConfig.cities?.forEach((cityConfig: any) => {
@@ -150,9 +161,14 @@ function Map3D(props: Props) {
               if (cityConfig.coordinates) {
                 const cityCoord = projectionFn(cityConfig.coordinates);
                 if (cityCoord) {
-                  const { flyLine, flySpot } = drawLineBetween2Spot(cityCoord, ningdeCoord!);
+                  // ...生成飞线和光点...
+                  const { flyLine, flySpot } = drawLineBetween2Spot(
+                    cityCoord,
+                    ningdeCoord!
+                  );
                   flyObject3D.add(flyLine);
                   flyObject3D.add(flySpot);
+                  // 光点存入数组
                   flySpotList.push(flySpot);
                 }
               }
@@ -160,16 +176,20 @@ function Map3D(props: Props) {
           });
         }
       }
+
+      // 容器加入场景
       mapObject3D.add(flyObject3D);
 
       const controls = new OrbitControls(camera, labelRenderer.domElement);
-      controls.enableRotate = false;
+      controls.enableRotate = true;
       controls.enableZoom = true;
       controls.enablePan = true;
       controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
+      controls.dampingFactor = 0.15;
+      controls.enableZoom = true;
 
-      const { pointLight } = initLights(scene);
+      const { chinaPointLight, worldPointLight, ambientLight } =
+        initLights(scene);
 
       const onResizeEvent = () => {
         camera.aspect = currentDom.clientWidth / currentDom.clientHeight;
@@ -185,13 +205,13 @@ function Map3D(props: Props) {
       let mouseMoveThrottle = 0;
       const onMouseMoveEvent = (e: MouseEvent) => {
         if (isHoveringTooltipRef.current) return;
-        
+
         mouseMoveThrottle++;
         if (mouseMoveThrottle % UI_CONSTANTS.MOUSE_MOVE_THROTTLE !== 0) return;
-        
+
         pointer.x = (e.clientX / currentDom.clientWidth) * 2 - 1;
         pointer.y = -(e.clientY / currentDom.clientHeight) * 2 + 1;
-        
+
         const interactiveObjects: THREE.Object3D[] = [];
         scene.traverse((obj: any) => {
           if (obj.userData.isCity || obj.userData.isChangeColor) {
@@ -199,16 +219,25 @@ function Map3D(props: Props) {
           }
         });
         raycaster.setFromCamera(pointer, camera);
-        const intersects = raycaster.intersectObjects(interactiveObjects, false);
+        const intersects = raycaster.intersectObjects(
+          interactiveObjects,
+          false
+        );
 
         if (lastPickRef.current) {
           restorePickedObjectColor(lastPickRef.current);
         }
-        
+
         lastPickRef.current = findPickedObject(intersects);
 
         if (lastPickRef.current) {
-          applyHoverEffect(lastPickRef.current, e, toolTipRef, setToolTipData, currentCityDataRef);
+          applyHoverEffect(
+            lastPickRef.current,
+            e,
+            toolTipRef,
+            setToolTipData,
+            currentCityDataRef
+          );
         } else {
           if (!isHoveringTooltipRef.current) {
             hideTooltip(toolTipRef.current);
@@ -216,25 +245,50 @@ function Map3D(props: Props) {
         }
       };
 
-      const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
+      // const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
+      const mapScale = mapType === "china" ? 3 : 2.2;
       mapObject3D.scale.set(0, 0, 0);
-      gsap.to(mapObject3D.scale, { x: mapScale, y: mapScale, z: 1, duration: 1 });
-      
+      gsap.to(mapObject3D.scale, {
+        x: mapScale,
+        y: mapScale,
+        z: 1,
+        duration: 1,
+      });
+
       if (mapType === "world") {
         const boundingBox = new THREE.Box3().setFromObject(mapObject3D);
         const center = new THREE.Vector3();
         boundingBox.getCenter(center);
         mapObject3D.position.set(-center.x, -center.y, 0);
+        mapObject3D.add(worldPointLight);
+        scene.add(worldPointLight);
+      }
+
+      if (mapType === "china") {
+        const boundingBox = new THREE.Box3().setFromObject(mapObject3D);
+        const center = new THREE.Vector3();
+        boundingBox.getCenter(center);
+
+        mapObject3D.position.set(-center.x, -center.y, 0);
+        mapObject3D.add(chinaPointLight);
+        scene.add(chinaPointLight);
+        console.log("mapObject3D", mapObject3D);
+        // if (!mapObject3D.children.includes(chinaPointLight)) {
+        //   mapObject3D.add(chinaPointLight);
+        // }
+        // if (!scene.children.includes(chinaPointLight)) {
+        //   scene.add(chinaPointLight);
+        // }
       }
 
       const clock = new THREE.Clock();
       let frameCount = 0;
       const tempPosition = new THREE.Vector3();
-      
+
       const animate = function () {
         frameCount++;
         const delta = clock.getDelta();
-        
+
         if (modelMixer.length > 0) {
           modelMixer.forEach((mixer: any) => mixer.update(delta));
         }
@@ -265,7 +319,7 @@ function Map3D(props: Props) {
             }
           });
         }
-        
+
         if (citySpotListRef.length > 0) {
           citySpotListRef.forEach((mesh: any) => {
             if (!mesh._s) mesh._s = 1;
@@ -291,37 +345,43 @@ function Map3D(props: Props) {
 
         animationFrameIdRef.current = requestAnimationFrame(animate);
       };
-      
+
       animationFrameIdRef.current = requestAnimationFrame(animate);
       window.addEventListener("resize", onResizeEvent, false);
       window.addEventListener("mousemove", onMouseMoveEvent, false);
 
-      const gui = new dat.GUI();
-      gui.width = 300;
-      
-      const colorConfig = {
-        mapColor: mapConfig.mapColor,
-      };
-      
-      gui.addColor(colorConfig, "mapColor").name("地图颜色").onChange((v: string) => {
-        mapConfig.mapColor = v;
-        mapObject3D.traverse((obj: any) => {
-          if (obj.material?.[0] && obj.userData.isChangeColor) {
-            obj.material[0].color.set(v);
-          }
-        });
-      });
+      // const gui = new dat.GUI();
+      // gui.width = 300;
 
-      gui.add({ intensity: pointLight.intensity }, "intensity", 0, 5).name("光强度").onChange((v: number) => {
-        pointLight.intensity = v;
-      });
+      // const colorConfig = {
+      //   mapColor: mapConfig.mapColor,
+      // };
+
+      // gui
+      //   .addColor(colorConfig, "mapColor")
+      //   .name("地图颜色")
+      //   .onChange((v: string) => {
+      //     mapConfig.mapColor = v;
+      //     mapObject3D.traverse((obj: any) => {
+      //       if (obj.material?.[0] && obj.userData.isChangeColor) {
+      //         obj.material[0].color.set(v);
+      //       }
+      //     });
+      //   });
+
+      // gui
+      //   .add({ intensity: pointLight.intensity }, "intensity", 0, 5)
+      //   .name("光强度")
+      //   .onChange((v: number) => {
+      //     pointLight.intensity = v;
+      //   });
 
       setIsLoading(false);
     }, 100);
 
     return () => {
       clearTimeout(timer);
-      
+
       if (animationFrameIdRef.current !== null) {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
@@ -329,14 +389,26 @@ function Map3D(props: Props) {
   }, [geoJson, mapType, projectionFnParam, displayConfig]);
 
   return (
-    <div style={{ width: "100%", height: "100%", overflow: "hidden", position: "relative" }}>
-      <Loading show={isLoading} text={`加载${mapType === "china" ? "中国" : "世界"}地图中...`} />
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      <Loading
+        show={isLoading}
+        text={`加载${mapType === "china" ? "中国" : "世界"}地图中...`}
+      />
       <div ref={map2dRef} />
       <div ref={mapRef} style={{ width: "100%", height: "100%" }}></div>
       <ToolTip
         innterRef={toolTipRef}
         data={toolTipData}
-        onMouseEnter={() => { isHoveringTooltipRef.current = true; }}
+        onMouseEnter={() => {
+          isHoveringTooltipRef.current = true;
+        }}
         onMouseLeave={() => {
           isHoveringTooltipRef.current = false;
           if (toolTipRef.current?.style) {

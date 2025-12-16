@@ -16,24 +16,28 @@ export function filterPolarRegions(geoJsonData: any): GeoJsonType | null {
     if (!feature.geometry || !feature.geometry.coordinates) {
       return false;
     }
-    
+
     try {
       const coordinates = feature.geometry.coordinates;
       let maxLat = -90;
       let minLat = 90;
       let hasValidCoords = false;
-      
+
       // 递归检查坐标
       const checkCoordinates = (coords: any, depth: number = 0): void => {
         if (!Array.isArray(coords)) return;
-        
+
         if (depth > 10) return; // 防止无限递归
-        
-        if (coords.length >= 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+
+        if (
+          coords.length >= 2 &&
+          typeof coords[0] === "number" &&
+          typeof coords[1] === "number"
+        ) {
           // 这是一个坐标点 [lng, lat]
           const lat = coords[1];
           const lng = coords[0];
-          
+
           // 验证坐标有效性
           if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
             maxLat = Math.max(maxLat, lat);
@@ -45,9 +49,9 @@ export function filterPolarRegions(geoJsonData: any): GeoJsonType | null {
           coords.forEach((coord: any) => checkCoordinates(coord, depth + 1));
         }
       };
-      
+
       checkCoordinates(coordinates);
-      
+
       // 排除南极（纬度 < -60）和北极（纬度 > 85），但保留有有效坐标的feature
       if (!hasValidCoords) return false;
       return minLat > -60 && maxLat < 85;
@@ -56,10 +60,10 @@ export function filterPolarRegions(geoJsonData: any): GeoJsonType | null {
       return false;
     }
   });
-  
+
   return {
     type: "FeatureCollection",
-    features: filteredFeatures
+    features: filteredFeatures,
   };
 }
 
@@ -71,19 +75,18 @@ export function filterPolarRegions(geoJsonData: any): GeoJsonType | null {
  */
 export function restoreObjectColor(
   object: any,
-  defaultColors: string[],
+  defaultColors: string,
   opacity: number = 0.9
 ): void {
   if (!object || !object.material) return;
-  
+
   const originalColor = object.userData?.originalColor;
   if (originalColor && object.material[0]) {
     object.material[0].color.set(originalColor);
     object.material[0].opacity = opacity;
   } else if (object.material[0]) {
-    // 如果没有保存原始颜色，使用随机颜色（向后兼容）
-    const color = defaultColors[Math.floor(Math.random() * defaultColors.length)];
-    object.material[0].color.set(color);
+    console.log("defaultColors", defaultColors);
+    object.material[0].color.set(defaultColors);
     object.material[0].opacity = opacity;
   }
 }
@@ -104,8 +107,8 @@ export function setTooltipPosition(
   offsetY: number = 15
 ): void {
   if (tooltipElement && tooltipElement.style) {
-    tooltipElement.style.left = (mouseX + offsetX) + "px";
-    tooltipElement.style.top = (mouseY + offsetY) + "px";
+    tooltipElement.style.left = mouseX + offsetX + "px";
+    tooltipElement.style.top = mouseY + offsetY + "px";
     tooltipElement.style.visibility = "visible";
   }
 }
@@ -119,4 +122,3 @@ export function hideTooltip(tooltipElement: any): void {
     tooltipElement.style.visibility = "hidden";
   }
 }
-

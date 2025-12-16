@@ -58,7 +58,7 @@ export function restorePickedObjectColor(pickedObject: any): void {
     // 省份/国家恢复原色
     restoreObjectColor(
       pickedObject.object,
-      mapConfig.mapColorGradient,
+      mapConfig.mapColor,
       mapConfig.mapOpacity
     );
   }
