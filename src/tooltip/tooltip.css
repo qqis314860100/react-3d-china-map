@@ -1,0 +1,132 @@
+.tooltip {
+  position: fixed;
+  z-index: 999;
+  visibility: hidden;
+  pointer-events: auto;
+
+  background: #010209;
+  border-radius: 10px;
+  padding: 12px 12px 10px;
+
+  /* 避免弹窗撑出屏幕：整体限制高度，内部列表滚动 */
+  max-height: min(70vh, 520px);
+  overflow: hidden;
+
+  color: #cfe6ff;
+  line-height: 1.35;
+}
+
+.tooltip--city {
+  min-width: 240px;
+  max-width: 380px;
+  border: 2px solid #ffd700;
+  box-shadow: 0 10px 30px rgba(255, 215, 0, 0.22);
+}
+
+.tooltip--province {
+  min-width: 160px;
+  max-width: 260px;
+  border: 2px solid #3b93e6;
+  box-shadow: 0 10px 30px rgba(59, 147, 230, 0.22);
+}
+
+.tooltip__title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: 0.2px;
+}
+
+.tooltip--city .tooltip__title {
+  color: #ffd700;
+}
+
+.tooltip--province .tooltip__title {
+  color: #3b93e6;
+}
+
+.tooltip__meta {
+  font-size: 12px;
+  color: #7fc4ff;
+  opacity: 0.95;
+  margin: 0 0 8px;
+}
+
+.tooltip__link {
+  font-size: 12px;
+  color: #ffd700;
+  cursor: pointer;
+  text-decoration: underline;
+  margin: 0 0 8px;
+  opacity: 0.95;
+  user-select: none;
+}
+
+.tooltip__sectionTitle {
+  font-size: 12px;
+  margin: 10px 0 8px;
+  color: #7fc4ff;
+  font-weight: 600;
+}
+
+.tooltip__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  /* 列表区域可滚动：多了不会撑爆弹窗 */
+  max-height: min(36vh, 240px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.tooltip__list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tooltip__list::-webkit-scrollbar-thumb {
+  background: rgba(255, 215, 0, 0.25);
+  border-radius: 999px;
+}
+
+.tooltip__list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+
+.tooltip__item {
+  padding: 8px 10px;
+  background: #0a1e4d;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 215, 0, 0.9);
+  color: #ffd700;
+  font-size: 13px;
+  cursor: default;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease,
+    border-color 180ms ease;
+
+  /* 防止长文字溢出 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tooltip__item--clickable {
+  cursor: pointer;
+}
+
+.tooltip__item--clickable:hover {
+  background: #ffd700;
+  color: #000;
+  transform: translateX(4px);
+  border-color: rgba(255, 215, 0, 1);
+}
+
+.tooltip__empty {
+  font-size: 12px;
+  color: #8a8a8a;
+  font-style: italic;
+  margin-top: 6px;
+}
+
+
