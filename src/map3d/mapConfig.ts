@@ -10,15 +10,15 @@ export const mapConfig = {
   mapTransparent: false,
   mapOpacity: 1,
   // 地图颜色
-  mapColor: "#4A90E2", // 默认浅杏色（标准地图常用底色）
-  mapHoverColor: "#85b1e4", // Hover时显示金色
+  mapColor: "#4A90E2", // 底色
+  mapHoverColor: "#85b1e4", // Hover时显示
 
   // 地图侧面渐变 - 配合浅色表面，侧面使用稍深的同色系或中性色
   mapSideColor1: "#CFB997", // 深杏色
   mapSideColor2: "#8FBC8F", // 深豆绿（作为混合）
   // 上面的line
-  topLineColor: 0x888888, // 深灰色线条，更像标准地图的边界线
-  topLineWidth: 2, // 线条稍微细一点
+  topLineColor: 0x888888, // 深灰色线条边界线
+  topLineWidth: 1.5, // 线条稍微细一点
   topLineZIndex: Depth + 0.5,
   // label 2d高度
   label2dZIndex: Depth + 2,
@@ -213,13 +213,12 @@ export const WORLD_MAP_PROJECTION = {
   scale: 60, // 调整缩放比例以铺满屏幕（减小scale让地图更大）
 };
 
-// 中国地图投影参数 - 以宁德为中心，铺满整个屏幕
+// 中国地图投影参数 - 以兰州为中心，铺满整个屏幕
 export const CHINA_MAP_PROJECTION = {
   center: [104.0, 37.5] as [number, number],
   scale: 40,
 };
 
-// 大洲颜色配置
 export const CONTINENT_COLORS: { [key: string]: string } = {
   // 亚洲 - 黄色系
   Asia: "#FFD700",
