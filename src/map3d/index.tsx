@@ -134,6 +134,8 @@ function Map3D(props: Props) {
       // 存储所有飞点对象
       const flySpotList: any = [];
       let ningdeCoordForLight: [number, number] | null = null;
+      // 中国地图“宁德光斑”目标点（mapObject3D 的本地坐标系）
+      let chinaLightTargetLocal: THREE.Vector3 | null = null;
 
       if (displayConfig && displayConfig.length > 0 && mapType === "china") {
         const { center, scale } = projectionFnParam;
@@ -159,6 +161,12 @@ function Map3D(props: Props) {
 
         if (ningdeCoord) {
           ningdeCoordForLight = ningdeCoord;
+          // 地图绘制时 y 会取反，这里提前转换成与地图一致的本地坐标
+          chinaLightTargetLocal = new THREE.Vector3(
+            ningdeCoord[0],
+            -ningdeCoord[1],
+            0
+          );
           displayConfig.forEach((provinceConfig: any) => {
             provinceConfig.cities?.forEach((cityConfig: any) => {
               if (normalizeCityName(cityConfig.name) === "宁德") return;
@@ -274,12 +282,9 @@ function Map3D(props: Props) {
 
         mapObject3D.position.set(-center.x, -center.y, 0);
 
-        // 以“宁德”为中心的点光源：使用当前投影算出的宁德坐标（与地图同坐标系）
-        // 注意：地图渲染时 y 会取反（coord[1] -> -coord[1]），灯光要保持一致
-        const [x, y] = (ningdeCoordForLight ?? [0, 0]) as [number, number];
-        chinaPointLight.position.set(x, -y, 60);
-
-        mapObject3D.add(chinaPointLight);
+        // 中国地图点光源放到场景里（避免被 mapObject3D 的缩放“拉远”导致整图偏亮）
+        // 位置会在 animate 中每帧跟随宁德目标点更新，保证缩放/拖拽时仍锁定宁德
+        scene.add(chinaPointLight);
         console.log("mapObject3D", mapObject3D);
         // if (!mapObject3D.children.includes(chinaPointLight)) {
         //   mapObject3D.add(chinaPointLight);
@@ -292,6 +297,7 @@ function Map3D(props: Props) {
       const clock = new THREE.Clock();
       let frameCount = 0;
       const tempPosition = new THREE.Vector3();
+      const tempLightTargetWorld = new THREE.Vector3();
 
       const animate = function () {
         frameCount++;
@@ -349,6 +355,20 @@ function Map3D(props: Props) {
             mesh.curve.getPointAt(mesh._s % 1, tempPosition);
             mesh.position.copy(tempPosition);
           });
+        }
+
+        // 中国地图：让点光源始终锁定在“宁德”上方，形成小范围光斑
+        if (mapType === "china") {
+          const targetLocal =
+            chinaLightTargetLocal ?? (tempLightTargetWorld.set(0, 0, 0), tempLightTargetWorld);
+          tempLightTargetWorld.copy(targetLocal);
+          mapObject3D.localToWorld(tempLightTargetWorld);
+          // 让灯在目标点正上方一定高度（世界坐标）
+          chinaPointLight.position.set(
+            tempLightTargetWorld.x,
+            tempLightTargetWorld.y,
+            tempLightTargetWorld.z + 80
+          );
         }
 
         animationFrameIdRef.current = requestAnimationFrame(animate);

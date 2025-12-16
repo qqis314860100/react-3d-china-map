@@ -23,7 +23,12 @@ export function initLights(scene: THREE.Scene): {
   const worldPointLight = new THREE.PointLight(0xffffff, 1.5);
   worldPointLight.position.set(0, -5, 35);
 
-  const chinaPointLight = new THREE.PointLight(0xffffff, 1.5);
+  /**
+   * 中国地图点光源：
+   * - distance：限制影响范围，避免“整张地图都被照亮”
+   * - decay：衰减系数，距离越远越暗，形成更像“光斑”的效果
+   */
+  const chinaPointLight = new THREE.PointLight(0xffffff, 2.1, 240, 2);
   // 中国地图的点光源位置由 Map3D 按当前投影/配置（如宁德坐标）来设置
   // 这里给一个合理默认值，避免未设置时黑屏
   chinaPointLight.position.set(0, 0, 50);
