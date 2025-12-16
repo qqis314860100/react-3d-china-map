@@ -116,7 +116,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
     name: "福建省",
     cities: [
       {
-        name: "宁德市",
+        name: "宁德",
         coordinates: [119.527, 26.666], // 需要替换实际经纬度
         districts: [
           { name: "JC基地", url: "http://10.145.196.171:8888/#/factoryview" },
@@ -125,7 +125,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
         ],
       },
       {
-        name: "厦门市",
+        name: "厦门",
         coordinates: [118.089, 24.48], // 需要替换实际经纬度
         districts: [
           { name: "XM基地", url: "http://10.196.201.228:8888/#/factoryview" },
@@ -137,7 +137,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
     name: "河南省",
     cities: [
       {
-        name: "洛阳市",
+        name: "洛阳",
         coordinates: [112.454, 34.624], // 需要替换实际经纬度
         districts: [
           { name: "LJ基地", url: "http://10.51.201.84:8888/#/factoryview" },
@@ -149,7 +149,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
     name: "四川省",
     cities: [
       {
-        name: "宜宾市",
+        name: "宜宾",
         coordinates: [104.643, 28.752], // 需要替换实际经纬度
         districts: [
           { name: "SJ基地", url: "http://10.103.201.33:8888/#/factoryview" },
@@ -161,7 +161,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
     name: "江苏省",
     cities: [
       {
-        name: "常州市",
+        name: "常州",
         coordinates: [119.975, 31.815], // 需要替换实际经纬度
         districts: [
           { name: "LY基地", url: "http://172.21.29.135/#/factoryview" },
@@ -173,7 +173,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
     name: "山东省",
     cities: [
       {
-        name: "济宁市",
+        name: "济宁",
         coordinates: [116.587, 35.415], // 需要替换实际经纬度
         districts: [
           { name: "JN基地", url: "http://10.101.201.58:8888/#/factoryview" },
@@ -185,7 +185,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
     name: "广东省",
     cities: [
       {
-        name: "广州市",
+        name: "广州",
         coordinates: [113.265, 23.129], // 需要替换实际经纬度
         districts: [
           { name: "CG基地", url: "http://10.137.65.86:8888/#/factoryview" },
@@ -197,7 +197,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
     name: "重庆市",
     cities: [
       {
-        name: "渝北区",
+        name: "重庆",
         coordinates: [106.631, 29.718], // 需要替换实际经纬度
         districts: [
           { name: "CY基地", url: "http://10.107.201.27:8888/#/factoryview" },

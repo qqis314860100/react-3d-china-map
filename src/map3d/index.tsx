@@ -64,6 +64,8 @@ function Map3D(props: Props) {
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const normalizeCityName = (name?: string) => (name || "").replace(/市$/, "");
+
   useEffect(() => {
     const currentDom = mapRef.current;
     const labelDom = map2dRef.current;
@@ -131,6 +133,7 @@ function Map3D(props: Props) {
       const flyObject3D = new THREE.Object3D();
       // 存储所有飞点对象
       const flySpotList: any = [];
+      let ningdeCoordForLight: [number, number] | null = null;
 
       if (displayConfig && displayConfig.length > 0 && mapType === "china") {
         const { center, scale } = projectionFnParam;
@@ -145,7 +148,7 @@ function Map3D(props: Props) {
         displayConfig.forEach((provinceConfig: any) => {
           if (provinceConfig.name === "福建省" && provinceConfig.cities) {
             const ningdeCity = provinceConfig.cities.find(
-              (city: any) => city.name === "宁德市"
+              (city: any) => normalizeCityName(city.name) === "宁德"
             );
             if (ningdeCity?.coordinates) {
               const coord = projectionFn(ningdeCity.coordinates);
@@ -155,9 +158,10 @@ function Map3D(props: Props) {
         });
 
         if (ningdeCoord) {
+          ningdeCoordForLight = ningdeCoord;
           displayConfig.forEach((provinceConfig: any) => {
             provinceConfig.cities?.forEach((cityConfig: any) => {
-              if (cityConfig.name === "宁德市") return;
+              if (normalizeCityName(cityConfig.name) === "宁德") return;
               if (cityConfig.coordinates) {
                 const cityCoord = projectionFn(cityConfig.coordinates);
                 if (cityCoord) {
@@ -191,6 +195,7 @@ function Map3D(props: Props) {
       const { chinaPointLight, worldPointLight, ambientLight } =
         initLights(scene);
 
+   
       const onResizeEvent = () => {
         camera.aspect = currentDom.clientWidth / currentDom.clientHeight;
         camera.updateProjectionMatrix();
