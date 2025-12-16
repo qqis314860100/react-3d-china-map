@@ -256,6 +256,16 @@ function Map3D(props: Props) {
         lastPickRef.current = nextPicked;
 
         if (nextPicked) {
+          // hover 提示：可交互目标显示 pointer
+          if (currentDom) {
+            const isCity = !!nextPicked.object?.userData?.isCity;
+            const hasUrl = !!nextPicked.object?.userData?.url;
+            const hasDistricts =
+              Array.isArray(nextPicked.object?.userData?.districts) &&
+              nextPicked.object.userData.districts.length > 0;
+            currentDom.style.cursor = isCity && (hasUrl || hasDistricts) ? "pointer" : "default";
+          }
+
           // 命中目标后，设置宽限时间，方便用户移动到 tooltip
           tooltipGraceUntilRef.current = Date.now() + 500;
 
@@ -275,6 +285,7 @@ function Map3D(props: Props) {
           );
           }
         } else {
+          if (currentDom) currentDom.style.cursor = "default";
           if (!isHoveringTooltipRef.current) {
             // 超过宽限期才隐藏（否则用户从目标移动到 tooltip 会很难）
             if (Date.now() >= tooltipGraceUntilRef.current) {
