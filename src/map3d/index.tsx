@@ -185,7 +185,8 @@ function Map3D(props: Props) {
       controls.enableZoom = true;
       controls.enablePan = true;
       controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
+      controls.dampingFactor = 0.15;
+      controls.enableZoom = true;
 
       const { chinaPointLight, worldPointLight, ambientLight } =
         initLights(scene);
@@ -244,7 +245,8 @@ function Map3D(props: Props) {
         }
       };
 
-      const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
+      // const mapScale = getDynamicMapScale(mapObject3D, currentDom, mapType);
+      const mapScale = mapType === "china" ? 3 : 2.2;
       mapObject3D.scale.set(0, 0, 0);
       gsap.to(mapObject3D.scale, {
         x: mapScale,
