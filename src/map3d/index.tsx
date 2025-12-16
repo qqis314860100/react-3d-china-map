@@ -192,8 +192,7 @@ function Map3D(props: Props) {
       controls.dampingFactor = 0.15;
       controls.enableZoom = true;
 
-      const { chinaPointLight, worldPointLight, ambientLight } =
-        initLights(scene);
+      const { chinaPointLight, worldPointLight } = initLights(scene);
 
    
       const onResizeEvent = () => {
@@ -266,7 +265,6 @@ function Map3D(props: Props) {
         boundingBox.getCenter(center);
         mapObject3D.position.set(-center.x, -center.y, 0);
         mapObject3D.add(worldPointLight);
-        scene.add(worldPointLight);
       }
 
       if (mapType === "china") {
@@ -275,8 +273,13 @@ function Map3D(props: Props) {
         boundingBox.getCenter(center);
 
         mapObject3D.position.set(-center.x, -center.y, 0);
+
+        // 以“宁德”为中心的点光源：使用当前投影算出的宁德坐标（与地图同坐标系）
+        // 注意：地图渲染时 y 会取反（coord[1] -> -coord[1]），灯光要保持一致
+        const [x, y] = (ningdeCoordForLight ?? [0, 0]) as [number, number];
+        chinaPointLight.position.set(x, -y, 60);
+
         mapObject3D.add(chinaPointLight);
-        scene.add(chinaPointLight);
         console.log("mapObject3D", mapObject3D);
         // if (!mapObject3D.children.includes(chinaPointLight)) {
         //   mapObject3D.add(chinaPointLight);

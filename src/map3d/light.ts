@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import * as d3 from "d3";
 
 /**
  * 初始化场景灯光
@@ -23,38 +22,14 @@ export function initLights(scene: THREE.Scene): {
    */
   const worldPointLight = new THREE.PointLight(0xffffff, 1.5);
   worldPointLight.position.set(0, -5, 35);
-  // scene.add(worldPointLight);
 
   const chinaPointLight = new THREE.PointLight(0xffffff, 1.5);
-  const projectedCoordinates = projectionFn(ningdeCoordinates);
-  if (projectedCoordinates) {
-    const [x, y] = projectedCoordinates;
-    console.log(x, y);
-    chinaPointLight.position.set(x, y, 50);
-  } else {
-    // 处理投影失败的情况，例如设置默认位置
-    chinaPointLight.position.set(0, 0, 50);
-  }
+  // 中国地图的点光源位置由 Map3D 按当前投影/配置（如宁德坐标）来设置
+  // 这里给一个合理默认值，避免未设置时黑屏
+  chinaPointLight.position.set(0, 0, 50);
   return {
     ambientLight,
     worldPointLight,
     chinaPointLight,
   };
 }
-
-// 设置投影参数
-const projectionFnParam = {
-  center: [105, 35],
-  scale: 1500,
-  translate: [0, 0],
-} as any;
-
-// 使用投影参数创建投影函数
-const projectionFn = d3
-  .geoMercator()
-  .center(projectionFnParam.center)
-  .scale(projectionFnParam.scale)
-  .translate(projectionFnParam.translate);
-
-// 宁德的地理坐标
-const ningdeCoordinates: [number, number] = [119.5115, 26.6663];
