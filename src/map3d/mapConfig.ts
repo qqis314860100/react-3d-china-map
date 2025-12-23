@@ -6,9 +6,9 @@ const Depth = 6;
 export const mapConfig = {
   // 地图挤出厚度
   mapDepth: Depth,
-  // 地图透明度
-  mapTransparent: false,
-  mapOpacity: 1,
+  // 地图透明度（用于让背景图透出来）
+  mapTransparent: true,
+  mapOpacity: 0.62,
   // 地图颜色
   mapColor: "#4A90E2", // 底色
   mapHoverColor: "#85b1e4", // Hover时显示

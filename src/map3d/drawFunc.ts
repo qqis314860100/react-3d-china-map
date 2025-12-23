@@ -94,6 +94,9 @@ export function drawExtrudeMesh(
       color2: {
         value: new THREE.Color(mapType === "china" ? CHINA_COLOR_THEME.side2 : mapConfig.mapSideColor2),
       },
+      opacity: {
+        value: mapConfig.mapOpacity,
+      },
     },
     vertexShader: `
       varying vec3 vPosition;
@@ -105,12 +108,14 @@ export function drawExtrudeMesh(
     fragmentShader: `
       uniform vec3 color1;
       uniform vec3 color2;
+      uniform float opacity;
       varying vec3 vPosition;
       void main() {
         vec3 mixColor = mix(color1, color2, 0.5 - vPosition.z * 0.2); // 使用顶点坐标 z 分量来控制混合
-        gl_FragColor = vec4(mixColor, 1.0);
+        gl_FragColor = vec4(mixColor, opacity);
       }
     `,
+    transparent: mapConfig.mapTransparent,
     //   wireframe: true,
   });
 

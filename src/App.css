@@ -1,0 +1,54 @@
+.app-root {
+  height: 100%;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  background-image: url("./assets/app-bg.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.app-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  color: #eaf3ff;
+  background: rgba(0, 0, 0, 0.28);
+  border-bottom: 1px solid rgba(127, 196, 255, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.app-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.app-title__main {
+  font-size: 16px;
+}
+
+.app-title__sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(234, 243, 255, 0.72);
+}
+
+.app-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+

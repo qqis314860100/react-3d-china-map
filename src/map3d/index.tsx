@@ -103,6 +103,9 @@ function Map3D(props: Props) {
         powerPreference: "high-performance",
       });
       rendererLocal.setSize(currentDom.clientWidth, currentDom.clientHeight);
+      // 让背景图透出来：WebGL canvas 清屏透明
+      rendererLocal.setClearColor(0x000000, 0);
+      rendererLocal.domElement.style.background = "transparent";
       let maxPixelRatio = Math.min(window.devicePixelRatio, 2);
       let currentPixelRatio = maxPixelRatio;
       rendererLocal.setPixelRatio(currentPixelRatio);
@@ -117,6 +120,7 @@ function Map3D(props: Props) {
       labelRendererLocal.setSize(currentDom.clientWidth, currentDom.clientHeight);
       labelRendererLocal.domElement.style.position = "absolute";
       labelRendererLocal.domElement.style.top = "0px";
+      labelRendererLocal.domElement.style.background = "transparent";
       labelRenderer = labelRendererLocal;
 
       while (labelDom.firstChild) {

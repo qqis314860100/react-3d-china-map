@@ -7,6 +7,7 @@ import {
   ProjectionFnParamType,
 } from "./map3d/types";
 import MapTabs from "./components/MapTabs";
+import "./App.css";
 
 // React 18 dev + StrictMode 会导致 effect 双执行（开发环境）。
 // 这里用模块级缓存去重网络请求，避免重复下载/重复 setState 影响“性能体感”。
@@ -106,16 +107,26 @@ function App() {
 
 
   return (
-    <div style={{ width: "100%", height: "100vh", position: "relative" }}>
-      <MapTabs 
-        chinaGeoJson={geoJson}
-        worldGeoJson={worldGeoJson}
-        chinaProjection={projectionFnParam}
-        worldProjection={worldProjectionFnParam}
-        chinaDisplayConfig={DISPLAY_CONFIG}
-        worldDisplayConfig={WORLD_DISPLAY_CONFIG}
-        defaultIndex={0}
-      />
+    <div className="app-root">
+      <div className="app-shell">
+        <div className="app-header">
+          <div className="app-title">
+            <div className="app-title__main">三维地图可视化</div>
+            <div className="app-title__sub">中国 / 世界 · Three.js</div>
+          </div>
+        </div>
+        <div className="app-content">
+          <MapTabs 
+            chinaGeoJson={geoJson}
+            worldGeoJson={worldGeoJson}
+            chinaProjection={projectionFnParam}
+            worldProjection={worldProjectionFnParam}
+            chinaDisplayConfig={DISPLAY_CONFIG}
+            worldDisplayConfig={WORLD_DISPLAY_CONFIG}
+            defaultIndex={0}
+          />
+        </div>
+      </div>
     </div>
   );
 }
