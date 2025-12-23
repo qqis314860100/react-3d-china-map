@@ -29,7 +29,6 @@ export function getDynamicMapScale(
   // 获取包围盒的尺寸
   const size = new THREE.Vector3();
   boundingBox.getSize(size);
-  console.log("mapType", mapType);
 
   // scaleFactor 数值越大，地图越小
   // 世界地图需要更大的 scaleFactor 才能完整显示
@@ -39,7 +38,6 @@ export function getDynamicMapScale(
     Math.round(Math.sqrt(refArea / (size.x * size.y * scaleFactor))) +
     parseFloat((Math.random() + 0.5).toFixed(2));
 
-  console.log("scaleFactor", scaleFactor, "sacle", scale, "mapType", mapType);
   // 确保缩放值在合理范围内
   if (mapType === "world") {
     return Math.max(0.5, Math.min(scale, 1.2));
@@ -508,7 +506,9 @@ export const draw2dLabel = (
     const innerHTML = `<div class="map-label" style="${labelStyle}">${proviceName}</div>`;
     const labelDiv = document.createElement("div");
     labelDiv.innerHTML = innerHTML;
-    labelDiv.style.pointerEvents = "none"; // 禁用事件，否则tooltip悬浮在当前div会导致失去事件追踪
+    // 允许标签参与 pointer 事件：用于“悬浮城市文字也能显示基地列表”
+    //（事件会冒泡到 labelRenderer.domElement，不会影响 OrbitControls）
+    labelDiv.style.pointerEvents = "auto";
     labelDiv.style.userSelect = "none"; // 禁止选择文本
 
     const labelObject = new CSS2DObject(labelDiv);

@@ -85,7 +85,6 @@ export function restoreObjectColor(
     object.material[0].color.set(originalColor);
     object.material[0].opacity = opacity;
   } else if (object.material[0]) {
-    console.log("defaultColors", defaultColors);
     object.material[0].color.set(defaultColors);
     object.material[0].opacity = opacity;
   }

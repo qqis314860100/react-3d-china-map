@@ -5,9 +5,15 @@ import { DISPLAY_CONFIG, WORLD_DISPLAY_CONFIG, WORLD_MAP_PROJECTION } from "./ma
 import { filterPolarRegions } from "./map3d/utils";
 import {
   ProjectionFnParamType,
-  ProvinceConfig,
 } from "./map3d/types";
 import MapTabs from "./components/MapTabs";
+
+// React 18 dev + StrictMode 会导致 effect 双执行（开发环境）。
+// 这里用模块级缓存去重网络请求，避免重复下载/重复 setState 影响“性能体感”。
+let chinaGeoJsonCache: GeoJsonType | undefined;
+let chinaGeoJsonPromise: Promise<GeoJsonType> | null = null;
+let worldGeoJsonCache: GeoJsonType | undefined;
+let worldGeoJsonPromise: Promise<GeoJsonType> | null = null;
 
 
 
@@ -24,10 +30,26 @@ function App() {
 
   // 请求中国地图数据
   const queryMapData = useCallback(async (code: number) => {
-    const response = await axios.get(
-      `https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`
-    );
-    const { data } = response;
+    if (chinaGeoJsonCache) {
+      setGeoJson(chinaGeoJsonCache);
+      return;
+    }
+
+    if (!chinaGeoJsonPromise) {
+      chinaGeoJsonPromise = axios
+        .get(`https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`)
+        .then((res) => res.data as GeoJsonType)
+        .then((data) => {
+          chinaGeoJsonCache = data;
+          return data;
+        })
+        .finally(() => {
+          // 允许失败后重试
+          chinaGeoJsonPromise = null;
+        });
+    }
+
+    const data = await chinaGeoJsonPromise;
     setGeoJson(data);
   }, []);
 
@@ -39,30 +61,37 @@ function App() {
   // 加载世界地图数据（过滤掉南极和北极）
   const loadWorldMapData = useCallback(async () => {
     try {
-      const response = await axios.get(
-        "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson",
-        { timeout: 15000 }
-      );
-      
-      if (response.data && response.data.type === "FeatureCollection") {
-        console.log("世界地图数据加载成功，features数量:", response.data.features.length);
-        
-        // 使用工具函数过滤极地区域
-        const filteredData = filterPolarRegions(response.data);
-        
-        if (filteredData && filteredData.features.length > 0) {
-          console.log("过滤后的features数量:", filteredData.features.length);
-          setWorldGeoJson(filteredData);
-        } else {
-          console.warn("过滤后没有features，使用原始数据");
-          setWorldGeoJson(response.data);
-        }
-      } else {
-        throw new Error("世界地图数据格式不正确");
+      if (worldGeoJsonCache) {
+        setWorldGeoJson(worldGeoJsonCache);
+        return;
       }
+
+      if (!worldGeoJsonPromise) {
+        worldGeoJsonPromise = axios
+          .get(
+            "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson",
+            { timeout: 15000 }
+          )
+          .then((res) => res.data)
+          .then((raw) => {
+            if (!raw || raw.type !== "FeatureCollection") {
+              throw new Error("世界地图数据格式不正确");
+            }
+            const filtered = filterPolarRegions(raw);
+            const finalData =
+              filtered && filtered.features.length > 0 ? filtered : raw;
+            worldGeoJsonCache = finalData;
+            return finalData;
+          })
+          .finally(() => {
+            worldGeoJsonPromise = null;
+          });
+      }
+
+      const data = await worldGeoJsonPromise;
+      setWorldGeoJson(data);
     } catch (error: any) {
       console.error("加载世界地图数据失败:", error.message || error);
-      console.warn("使用空的世界地图数据，请检查网络连接或数据源");
       setWorldGeoJson({
         type: "FeatureCollection",
         features: []

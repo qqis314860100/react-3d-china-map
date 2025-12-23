@@ -5,7 +5,6 @@ function ToolTip(props: any) {
   const {
     text,
     districts = [],
-    showPanel = false, // 兼容旧字段：目前由外部控制 text 与交互
     isCity = false,
     provinceName,
     url,
