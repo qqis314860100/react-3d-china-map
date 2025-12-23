@@ -3,10 +3,31 @@
   min-height: 100vh;
   width: 100%;
   position: relative;
-  background-image: url("./assets/app-bg.svg");
+}
+
+.app-bg {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  position: absolute;
+  background-image: url("./assets/background.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  filter: brightness(0.7); /* 背景图变暗 */
+}
+
+.app-bg::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  backdrop-filter: blur(5px); /* 高斯模糊 */
 }
 
 .app-shell {
@@ -16,7 +37,7 @@
 }
 
 .app-header {
-  height: 56px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -36,11 +57,11 @@
 }
 
 .app-title__main {
-  font-size: 16px;
+  font-size: 28px;
 }
 
 .app-title__sub {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 500;
   color: rgba(234, 243, 255, 0.72);
 }
@@ -50,5 +71,3 @@
   min-height: 0;
   position: relative;
 }
-
-
