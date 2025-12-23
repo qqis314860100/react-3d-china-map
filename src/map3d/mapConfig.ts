@@ -8,7 +8,7 @@ export const mapConfig = {
   mapDepth: Depth,
   // 地图透明度（用于让背景图透出来）
   mapTransparent: true,
-  mapOpacity: 0.62,
+  mapOpacity: 0.85,
   // 地图颜色
   mapColor: "#4A90E2", // 底色
   mapHoverColor: "#85b1e4", // Hover时显示
@@ -18,7 +18,7 @@ export const mapConfig = {
   mapSideColor2: "#8FBC8F", // 深豆绿（作为混合）
   // 上面的line
   topLineColor: 0x888888, // 深灰色线条边界线
-  topLineWidth: 1.5, // 线条稍微细一点
+  topLineWidth: 1, // 线条稍微细一点
   topLineZIndex: Depth + 0.5,
   // label 2d高度
   label2dZIndex: Depth + 2,
@@ -119,17 +119,18 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
         name: "宁德",
         coordinates: [119.527, 26.666], // 需要替换实际经纬度
         districts: [
-          { name: "JC基地", url: "http://10.145.196.171:8888/#/factoryview" },
-          { name: "HZ基地", url: "http://172.18.40.188:8888/#/factoryview" },
-          { name: "FD基地", url: "http://10.167.198.58:8888/#/factoryview" },
+          { name: "JC(蕉城时代)", url: "http://jcilc.catl.com:8888" },
+          { name: "HZ(Z基地)", url: "http://hzilc.catl.com:8888" },
+          {
+            name: "FD(福鼎时代)",
+            url: "http://10.167.198.58:8888/#/factoryview",
+          },
         ],
       },
       {
         name: "厦门",
         coordinates: [118.089, 24.48], // 需要替换实际经纬度
-        districts: [
-          { name: "XM基地", url: "http://10.196.201.228:8888/#/factoryview" },
-        ],
+        districts: [{ name: "XM基地", url: "http://xmilc.catl.com:8888" }],
       },
     ],
   },
@@ -140,7 +141,8 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
         name: "洛阳",
         coordinates: [112.454, 34.624], // 需要替换实际经纬度
         districts: [
-          { name: "LJ基地", url: "http://10.51.201.84:8888/#/factoryview" },
+          { name: "LJ(中州时代)", url: "http://ljilc.catl.com:8888" },
+          { name: "LJ2(中州时代)", url: "http://ljilc.catl.com:8888?site=LJ2" },
         ],
       },
     ],
@@ -152,7 +154,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
         name: "宜宾",
         coordinates: [104.643, 28.752], // 需要替换实际经纬度
         districts: [
-          { name: "SJ基地", url: "http://10.103.201.33:8888/#/factoryview" },
+          { name: "SJ(三江时代)", url: "http://sjilc.catl.com:8888" },
         ],
       },
     ],
@@ -164,7 +166,13 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
         name: "常州",
         coordinates: [119.975, 31.815], // 需要替换实际经纬度
         districts: [
-          { name: "LY基地", url: "http://172.21.29.135/#/factoryview" },
+          { name: "LY7基地", url: "http://lyilc.catl.com:8888?site=LY7" },
+          // { name: "LY6基地", url: "http://lyilc.catl.com:8888?site=LY6" },
+          // { name: "LY5基地", url: "http://lyilc.catl.com:8888?site=LY5" },
+          // { name: "LY4基地", url: "http://lyilc.catl.com:8888?site=LY4" },
+          // { name: "LY3基地", url: "http://lyilc.catl.com:8888?site=LY3" },
+          // { name: "LY2基地", url: "http://lyilc.catl.com:8888?site=LY2" },
+          // { name: "LY1基地", url: "http://lyilc.catl.com:8888?site=LY1" },
         ],
       },
     ],
@@ -175,9 +183,7 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
       {
         name: "济宁",
         coordinates: [116.587, 35.415], // 需要替换实际经纬度
-        districts: [
-          { name: "JN基地", url: "http://10.101.201.58:8888/#/factoryview" },
-        ],
+        districts: [{ name: "JN基地", url: "http://jnilc.catl.com:8888" }],
       },
     ],
   },
@@ -188,7 +194,10 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
         name: "广州",
         coordinates: [113.265, 23.129], // 需要替换实际经纬度
         districts: [
-          { name: "CG基地", url: "http://10.137.65.86:8888/#/factoryview" },
+          {
+            name: "CG(时代广汽)",
+            url: "http://10.137.65.86:8888/#/factoryview",
+          },
         ],
       },
     ],
@@ -200,7 +209,10 @@ export const DISPLAY_CONFIG: ProvinceConfig[] = [
         name: "重庆",
         coordinates: [106.631, 29.718], // 需要替换实际经纬度
         districts: [
-          { name: "CY基地", url: "http://10.107.201.27:8888/#/factoryview" },
+          {
+            name: "CY(川渝时代)",
+            url: "http://10.107.201.27:8888/#/factoryview",
+          },
         ],
       },
     ],
