@@ -44,8 +44,7 @@ const MapTabs: React.FC<MapTabsProps> = ({
             aria-selected={selectedIndex === 0}
             onClick={() => setSelectedIndex(0)}
           >
-            <span className="tab-icon">🇨🇳</span>
-            <span className="tab-text">中国地图</span>
+            <span className="tab-text">国内</span>
           </button>
           <button
             type="button"
@@ -54,8 +53,7 @@ const MapTabs: React.FC<MapTabsProps> = ({
             aria-selected={selectedIndex === 1}
             onClick={() => setSelectedIndex(1)}
           >
-            <span className="tab-icon">🌍</span>
-            <span className="tab-text">世界地图</span>
+            <span className="tab-text">海外</span>
           </button>
         </div>
 
@@ -93,4 +91,3 @@ const MapTabs: React.FC<MapTabsProps> = ({
 };
 
 export default MapTabs;
-
