@@ -8,6 +8,7 @@
 .custom-tabs {
   width: 100%;
   height: 100%;
+  position: relative;
 }
 
 /* Tab列表容器 */
@@ -68,22 +69,31 @@
   letter-spacing: 0.5px;
 }
 
-/* TabPanel样式 - 使用z-index控制层级，保持所有panel都可见 */
-.react-tabs__tab-panel {
+.tabs-viewport {
   width: 100%;
   height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  pointer-events: none;
-  display: block; /* 覆盖 react-tabs 默认 display:none */
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Firefox */
 }
 
-/* 激活的TabPanel显示在最上层并接收鼠标事件 */
-.react-tabs__tab-panel--selected {
-  z-index: 10 !important;
-  pointer-events: auto !important;
-  display: block !important;
+.tabs-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.tabs-track {
+  height: 100%;
+  display: flex;
+}
+
+.map-tabpanel {
+  width: 100%;
+  height: 100%;
+  flex: 0 0 100%;
+  scroll-snap-align: start;
 }
 
