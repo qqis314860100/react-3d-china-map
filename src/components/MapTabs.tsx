@@ -11,6 +11,11 @@ interface MapTabsProps {
   worldProjection: ProjectionFnParamType;
   chinaDisplayConfig: ProvinceConfig[];
   worldDisplayConfig: ProvinceConfig[];
+  /**
+   * 受控模式：由外部控制当前 Tab（0=国内，1=海外）
+   */
+  selectedIndex?: number;
+  onSelect?: (index: number) => void;
   defaultIndex?: number;
 }
 
@@ -21,9 +26,14 @@ const MapTabs: React.FC<MapTabsProps> = ({
   worldProjection,
   chinaDisplayConfig,
   worldDisplayConfig,
+  selectedIndex: selectedIndexProp,
+  onSelect,
   defaultIndex = 0,
 }) => {
-  const [selectedIndex, setSelectedIndex] = useState(defaultIndex);
+  const [uncontrolledIndex, setUncontrolledIndex] = useState(defaultIndex);
+  const isControlled = typeof selectedIndexProp === "number" && typeof onSelect === "function";
+  const selectedIndex = isControlled ? (selectedIndexProp as number) : uncontrolledIndex;
+  const setSelectedIndex = isControlled ? (onSelect as (i: number) => void) : setUncontrolledIndex;
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

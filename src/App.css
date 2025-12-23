@@ -12,7 +12,7 @@
   left: 0;
   z-index: -1;
   position: absolute;
-  /* background-image: url("./assets/background.png"); */
+  background-image: url("./assets/app-bg.svg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -70,4 +70,224 @@
   flex: 1;
   min-height: 0;
   position: relative;
+}
+
+.app-main {
+  height: calc(100vh - 70px);
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.app-sidebar {
+  width: 320px;
+  max-width: 360px;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(127, 196, 255, 0.18);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.app-sidebar--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-12px);
+}
+
+.app-map {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(127, 196, 255, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+/* ===== 侧栏样式（DomesticConfigSidebar） ===== */
+.dc-sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #eaf3ff;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.dc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dc-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dc-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dc-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(127, 196, 255, 0.14);
+  border: 1px solid rgba(127, 196, 255, 0.3);
+  font-size: 12px;
+}
+
+.dc-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dc-input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 196, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: #eaf3ff;
+  outline: none;
+}
+
+.dc-input::placeholder {
+  color: rgba(234, 243, 255, 0.6);
+}
+
+.dc-clear {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 196, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #eaf3ff;
+  cursor: pointer;
+}
+
+.dc-body {
+  flex: 1;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.dc-empty {
+  color: rgba(234, 243, 255, 0.7);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.dc-province {
+  border-radius: 10px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(127, 196, 255, 0.12);
+}
+
+.dc-province__summary {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.dc-province__name {
+  font-weight: 700;
+}
+
+.dc-province__meta {
+  font-size: 12px;
+  color: rgba(234, 243, 255, 0.7);
+}
+
+.dc-cities {
+  padding: 6px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dc-city {
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(127, 196, 255, 0.08);
+}
+
+.dc-city__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.dc-city__name {
+  font-weight: 600;
+}
+
+.dc-city__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.dc-districts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dc-district {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(127, 196, 255, 0.08);
+}
+
+.dc-district--empty {
+  color: rgba(234, 243, 255, 0.65);
+  font-size: 12px;
+}
+
+.dc-district__name {
+  font-weight: 500;
+}
+
+.dc-district__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.dc-link,
+.dc-ghost {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid rgba(127, 196, 255, 0.25);
+  background: rgba(127, 196, 255, 0.12);
+  color: #eaf3ff;
+}
+
+.dc-ghost {
+  background: transparent;
+  color: rgba(234, 243, 255, 0.8);
+}
+
+.dc-muted {
+  color: rgba(234, 243, 255, 0.6);
+  font-size: 12px;
 }
