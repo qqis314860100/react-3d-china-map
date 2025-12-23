@@ -38,6 +38,10 @@ interface Props {
   projectionFnParam: ProjectionFnParamType;
   displayConfig: ProvinceConfig[];
   mapType?: "china" | "world";
+  /**
+   * 当前 Map3D 是否处于激活状态（用于“两个地图同时挂载”时避免 tooltip/拾取互相干扰）
+   */
+  active?: boolean;
 }
 
 function Map3D(props: Props) {
@@ -46,6 +50,7 @@ function Map3D(props: Props) {
     projectionFnParam,
     displayConfig,
     mapType = "china",
+    active = true,
   } = props;
 
   const mapRef = useRef<HTMLDivElement>(null);
@@ -55,6 +60,7 @@ function Map3D(props: Props) {
   const currentCityDataRef = useRef<any>(null);
   const lastPickRef = useRef<any>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  const activeRef = useRef<boolean>(active);
   // Tooltip 隐藏“宽限期”：用于从地图目标移动到 Tooltip（避免一离开就闪没）
   const tooltipGraceUntilRef = useRef<number>(0);
 
@@ -65,6 +71,34 @@ function Map3D(props: Props) {
     isCity: false,
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // active 变化时不重新初始化场景，但要立刻停止交互/隐藏 tooltip，避免“两个地图信息同时显示”
+  useEffect(() => {
+    activeRef.current = active;
+
+    if (!active) {
+      try {
+        if (mapRef.current) mapRef.current.style.cursor = "default";
+      } catch {
+        // ignore
+      }
+      try {
+        restorePickedObjectColor(lastPickRef.current);
+      } catch {
+        // ignore
+      }
+      lastPickRef.current = null;
+      currentCityDataRef.current = null;
+      tooltipGraceUntilRef.current = 0;
+      hideTooltip(toolTipRef.current);
+      setToolTipData({
+        text: "",
+        districts: [],
+        showPanel: false,
+        isCity: false,
+      });
+    }
+  }, [active]);
 
   const normalizeCityName = (name?: string) => (name || "").replace(/市$/, "");
 
@@ -231,6 +265,7 @@ function Map3D(props: Props) {
 
       let mouseMoveThrottle = 0;
       const onMouseMoveEvent = (e: MouseEvent) => {
+        if (!activeRef.current) return;
         if (isHoveringTooltipRef.current) return;
         // Tooltip 已显示时，给用户一点时间把鼠标移入 Tooltip，避免瞬间消失
         const tooltipVisible =

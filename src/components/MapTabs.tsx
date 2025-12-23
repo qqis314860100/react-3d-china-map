@@ -66,6 +66,7 @@ const MapTabs: React.FC<MapTabsProps> = ({
                   projectionFnParam={chinaProjection}
                   displayConfig={chinaDisplayConfig}
                   mapType="china"
+                  active={selectedIndex === 0}
                 />
               ) : (
                 <div className="map-placeholder">加载中国地图中...</div>
@@ -78,6 +79,7 @@ const MapTabs: React.FC<MapTabsProps> = ({
                   projectionFnParam={worldProjection}
                   displayConfig={worldDisplayConfig}
                   mapType="world"
+                  active={selectedIndex === 1}
                 />
               ) : (
                 <div className="map-placeholder">加载世界地图中...</div>
