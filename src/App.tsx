@@ -33,6 +33,7 @@ function App() {
   const [geoJson, setGeoJson] = useState<GeoJsonType>();
   const [worldGeoJson, setWorldGeoJson] = useState<GeoJsonType>();
   const [tabIndex, setTabIndex] = useState<number>(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [projectionFnParam] =
     useState<ProjectionFnParamType>(CHINA_MAP_PROJECTION);
   const [worldProjectionFnParam] =
@@ -148,16 +149,30 @@ function App() {
         </div>
         <div className="app-content">
           <div className="app-main">
-            <div className="app-sidebar">
-              {tabIndex === 0 ? (
-                <DomesticConfigSidebar title="基地配置" data={DISPLAY_CONFIG} />
-              ) : (
-                <WorldConfigSidebar
-                  title="海外配置"
-                  data={WORLD_DISPLAY_CONFIG as WorldCountryConfig[]}
-                  projection={worldProjectionFnParam}
-                />
-              )}
+            <div
+              className={`app-sidebar ${
+                sidebarCollapsed ? "app-sidebar--collapsed" : ""
+              }`}
+            >
+              <button
+                className="sidebar-toggle"
+                type="button"
+                onClick={() => setSidebarCollapsed((v) => !v)}
+                aria-label={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+              >
+                {sidebarCollapsed ? "＞" : "＜"}
+              </button>
+              <div className="app-sidebar__content">
+                {tabIndex === 0 ? (
+                  <DomesticConfigSidebar title="基地配置" data={DISPLAY_CONFIG} />
+                ) : (
+                  <WorldConfigSidebar
+                    title="海外配置"
+                    data={WORLD_DISPLAY_CONFIG as WorldCountryConfig[]}
+                    projection={worldProjectionFnParam}
+                  />
+                )}
+              </div>
             </div>
             <div className="app-map">
               <MapTabs
