@@ -267,10 +267,13 @@ function Map3D(props: Props) {
       const { chinaPointLight, worldPointLight } = initLights(scene);
 
       onResizeEvent = () => {
-        camera.aspect = currentDom.clientWidth / currentDom.clientHeight;
+        const w = currentDom.clientWidth;
+        const h = currentDom.clientHeight;
+        if (!w || !h) return;
+        camera.aspect = w / h;
         camera.updateProjectionMatrix();
-        renderer?.setSize(currentDom.clientWidth, currentDom.clientHeight);
-        labelRenderer?.setSize(currentDom.clientWidth, currentDom.clientHeight);
+        renderer?.setSize(w, h);
+        labelRenderer?.setSize(w, h);
         renderer?.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       };
 
@@ -485,6 +488,7 @@ function Map3D(props: Props) {
       };
 
       animationFrameIdRef.current = requestAnimationFrame(animate);
+      // 监听 window.resize（侧栏动画结束后由 App 触发一次 resize，避免动画过程中频繁 setSize 导致卡/闪）
       if (onResizeEvent) window.addEventListener("resize", onResizeEvent, false);
       // 只在地图层监听，避免全局监听 + 重复绑定带来的延迟/卡顿
       eventTarget = labelRenderer.domElement as unknown as HTMLElement;

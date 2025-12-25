@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GeoJsonType } from "./map3d/typed";
 import {
   CHINA_MAP_PROJECTION,
@@ -34,6 +34,7 @@ function App() {
   const [worldGeoJson, setWorldGeoJson] = useState<GeoJsonType>();
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
   const [projectionFnParam] =
     useState<ProjectionFnParamType>(CHINA_MAP_PROJECTION);
   const [worldProjectionFnParam] =
@@ -138,6 +139,19 @@ function App() {
     loadWorldMapData();
   }, [queryMapData, loadWorldMapData]);
 
+  // 侧栏宽度/间距动画结束后再触发一次 resize，让 Map3D 在“稳定尺寸”下重算，避免频繁 setSize 造成卡顿/闪烁
+  const onSidebarTransitionEnd = useMemo(() => {
+    let raf = 0;
+    return (e: React.TransitionEvent<HTMLDivElement>) => {
+      if (e.target !== sidebarRef.current) return;
+      if (e.propertyName !== "width" && e.propertyName !== "margin-right") return;
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+    };
+  }, []);
+
   return (
     <div className="app-root">
       <div className="app-shell">
@@ -150,17 +164,18 @@ function App() {
         <div className="app-content">
           <div className="app-main">
             <div
-              className={`app-sidebar ${
-                sidebarCollapsed ? "app-sidebar--collapsed" : ""
-              }`}
+              ref={sidebarRef}
+              onTransitionEnd={onSidebarTransitionEnd}
+              className={`app-sidebar ${sidebarCollapsed ? "app-sidebar--collapsed" : ""}`}
             >
               <button
                 className="sidebar-toggle"
                 type="button"
                 onClick={() => setSidebarCollapsed((v) => !v)}
                 aria-label={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+                aria-expanded={!sidebarCollapsed}
               >
-                {sidebarCollapsed ? "＞" : "＜"}
+                <span className="sidebar-toggle__icon" aria-hidden="true" />
               </button>
               <div className="app-sidebar__content">
                 {tabIndex === 0 ? (
