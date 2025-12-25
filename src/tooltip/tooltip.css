@@ -1,5 +1,5 @@
 .tooltip {
-  position: fixed;
+  position: absolute;
   z-index: 999;
   visibility: hidden;
   pointer-events: auto;
@@ -28,7 +28,7 @@
   /* 扩大 hover 热区（不挡点击）：放在内容下层，仅在“外扩区域”接住鼠标 */
   content: "";
   position: absolute;
-  inset: -12px;
+  inset: -26px; /* 热区更大：更容易保持悬浮、点击基地列表 */
   background: transparent;
   z-index: 0;
   pointer-events: auto;
@@ -126,7 +126,10 @@
 }
 
 .tooltip__item {
-  padding: 8px 10px;
+  padding: 10px 12px; /* 点击区域更大 */
+  min-height: 36px;
+  display: flex;
+  align-items: center;
   background: #0a1e4d;
   border-radius: 6px;
   border: 1px solid rgba(255, 215, 0, 0.9);

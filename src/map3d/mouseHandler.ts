@@ -75,11 +75,16 @@ export function restorePickedObjectColor(pickedObject: any): void {
 export function applyHoverEffect(
   pickedObject: any,
   mouseEvent: MouseEvent,
+  containerRect: DOMRect | null,
   tooltipRef: any,
   setTooltipData: (data: TooltipData) => void,
   currentCityDataRef: React.MutableRefObject<any>
 ): void {
   if (!pickedObject) return;
+
+  // Tooltip 改为 position:absolute 后，这里必须用“相对容器”的坐标定位
+  const baseX = containerRect ? mouseEvent.clientX - containerRect.left : mouseEvent.clientX;
+  const baseY = containerRect ? mouseEvent.clientY - containerRect.top : mouseEvent.clientY;
   
   // 处理城市悬浮
   if (pickedObject.object.userData.isCity) {
@@ -96,8 +101,8 @@ export function applyHoverEffect(
     // 设置 Tooltip 位置
     setTooltipPosition(
       tooltipRef.current,
-      mouseEvent.clientX,
-      mouseEvent.clientY,
+      baseX,
+      baseY,
       UI_CONSTANTS.TOOLTIP_OFFSET_X,
       UI_CONSTANTS.TOOLTIP_OFFSET_Y
     );
@@ -125,8 +130,8 @@ export function applyHoverEffect(
     // 设置 Tooltip 位置
     setTooltipPosition(
       tooltipRef.current,
-      mouseEvent.clientX,
-      mouseEvent.clientY,
+      baseX,
+      baseY,
       UI_CONSTANTS.TOOLTIP_OFFSET_X,
       UI_CONSTANTS.TOOLTIP_OFFSET_Y
     );

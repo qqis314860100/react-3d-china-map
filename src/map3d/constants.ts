@@ -16,11 +16,14 @@ export const UI_CONSTANTS = {
   TOOLTIP_OFFSET_X: 15,
   TOOLTIP_OFFSET_Y: 15,
   
+  // Tooltip 隐藏宽限期（ms）
+  TOOLTIP_GRACE_MS: 250,
+
   // 鼠标事件节流
-  MOUSE_MOVE_THROTTLE: 3,
+  MOUSE_MOVE_THROTTLE: 2,
   
   // Raycaster 更新频率
-  RAYCASTER_UPDATE_FREQUENCY: 3,
+  RAYCASTER_UPDATE_FREQUENCY: 2,
 };
 
 // ==================== 动画常量 ====================

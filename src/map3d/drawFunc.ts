@@ -339,6 +339,7 @@ export function generateMapSpot(
   cityDataList.forEach((cityData) => {
     const citySpotItem = drawCitySpot(cityData.coord, mapType);
     if (citySpotItem && citySpotItem.circle && citySpotItem.ring) {
+      const config = CITY_SPOT_CONFIG[mapType];
       const cityUserData = {
         isCity: true,
         cityName: cityData.cityName,
@@ -359,6 +360,19 @@ export function generateMapSpot(
         citySpotItem.outerGlow.userData = cityUserData;
       }
 
+      // 额外增加一个“透明拾取热区”，让城市名/黄点附近更容易触发基地列表
+      const hitGeometry = new THREE.CircleGeometry(config.hitRadius, 24);
+      const hitMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const hit = new THREE.Mesh(hitGeometry, hitMaterial);
+      hit.position.set(cityData.coord[0], -cityData.coord[1], mapConfig.spotZIndex + 0.02);
+      hit.userData = cityUserData;
+
       // 添加到场景
       spotObject3D.add(citySpotItem.circle);
       spotObject3D.add(citySpotItem.ring);
@@ -368,6 +382,7 @@ export function generateMapSpot(
       if (citySpotItem.outerGlow) {
         spotObject3D.add(citySpotItem.outerGlow);
       }
+      spotObject3D.add(hit);
       citySpotList.push(citySpotItem.ring);
     }
   });
@@ -384,6 +399,8 @@ export const CITY_SPOT_CONFIG = {
     ringOuterRadius: 0.5, // 增大外圆环
     outerGlowInnerRadius: 0.5,
     outerGlowOuterRadius: 0.7, // 增大光环
+    // 用于“更容易悬浮/点击”的拾取热区（透明，不影响视觉）
+    hitRadius: 1.2,
   },
   world: {
     // 世界地图的圆点需要更大，因为地图整体缩放更小
@@ -393,6 +410,7 @@ export const CITY_SPOT_CONFIG = {
     ringOuterRadius: 2.0, // 增大外圆环
     outerGlowInnerRadius: 2.0,
     outerGlowOuterRadius: 2.8, // 增大光环
+    hitRadius: 4.2,
   },
 };
 
@@ -501,6 +519,7 @@ export const draw2dLabel = (
         color: ${styleConfig.color};
         font-size: ${styleConfig.fontSize}px;
         font-weight: bold;
+        transform: translateY(-16px); /* 城市名抬高一点，离黄色标记远点 */
         text-shadow: 
           0 0 6px rgba(255, 215, 0, 0.8),
           0 0 10px rgba(255, 215, 0, 0.6),

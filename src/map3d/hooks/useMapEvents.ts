@@ -36,8 +36,14 @@ export const useMapEvents = (
       }
 
       const currentDom = mapRef.current;
-      pointerRef.current.x = (e.clientX / currentDom.clientWidth) * 2 - 1;
-      pointerRef.current.y = -(e.clientY / currentDom.clientHeight) * 2 + 1;
+      // 关键：用“相对地图容器”的坐标换算，侧栏/头部/边距存在时才不会拾取错位
+      const rect = currentDom.getBoundingClientRect();
+      const relX = e.clientX - rect.left;
+      const relY = e.clientY - rect.top;
+      const nx = (relX / rect.width) * 2 - 1;
+      const ny = -(relY / rect.height) * 2 + 1;
+      pointerRef.current.x = Math.max(-1, Math.min(1, nx));
+      pointerRef.current.y = Math.max(-1, Math.min(1, ny));
 
       const interactiveObjects: THREE.Object3D[] = [];
       scene.traverse((obj: any) => {
@@ -62,6 +68,7 @@ export const useMapEvents = (
         applyHoverEffect(
           lastPickRef.current,
           e,
+          rect,
           toolTipRef,
           setToolTipData,
           currentCityDataRef

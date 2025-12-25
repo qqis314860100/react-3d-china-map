@@ -12,6 +12,7 @@ import { initCamera } from "./camera";
 import { initLights } from "./light";
 import { UI_CONSTANTS } from "./constants";
 import { hideTooltip } from "./utils";
+import { disposeObject3D } from "./dispose";
 import {
   findPickedObject,
   restorePickedObjectColor,
@@ -109,12 +110,23 @@ function Map3D(props: Props) {
 
     setIsLoading(true);
 
+    // 资源/事件引用：用于 cleanup，避免重复监听导致“越来越卡/越来越延迟”
+    let renderer: THREE.WebGLRenderer | null = null;
+    let labelRenderer: CSS2DRenderer | null = null;
+    let controls: OrbitControls | null = null;
+    let scene: THREE.Scene | null = null;
+    let mapObject3D: THREE.Object3D | null = null;
+    let eventTarget: HTMLElement | null = null;
+    let onResizeEvent: (() => void) | null = null;
+    let onMouseMoveEvent: ((e: MouseEvent) => void) | null = null;
+    let onMouseLeaveEvent: (() => void) | null = null;
+
     // 延迟初始化，确保 Loading 能显示
     const timer = setTimeout(() => {
-      const scene = initScene();
+      scene = initScene();
       const { camera } = initCamera(currentDom, mapType);
 
-      const renderer = new THREE.WebGLRenderer({
+      renderer = new THREE.WebGLRenderer({
         antialias: true,
         powerPreference: "high-performance",
       });
@@ -129,7 +141,7 @@ function Map3D(props: Props) {
       }
       currentDom.appendChild(renderer.domElement);
 
-      const labelRenderer = new CSS2DRenderer();
+      labelRenderer = new CSS2DRenderer();
       labelRenderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
       labelRenderer.domElement.style.position = "absolute";
       labelRenderer.domElement.style.top = "0px";
@@ -139,12 +151,14 @@ function Map3D(props: Props) {
       }
       labelDom.appendChild(labelRenderer.domElement);
 
-      const { mapObject3D, label2dData } = generateMapObject3D(
+      const generated = generateMapObject3D(
         geoJson,
         projectionFnParam,
         displayConfig,
         mapType
       );
+      mapObject3D = generated.mapObject3D;
+      const label2dData = generated.label2dData;
       scene.add(mapObject3D);
 
       const labelObject2D = generateMapLabel2D(
@@ -231,7 +245,7 @@ function Map3D(props: Props) {
       // 容器加入场景
       mapObject3D.add(flyObject3D);
 
-      const controls = new OrbitControls(camera, labelRenderer.domElement);
+      controls = new OrbitControls(camera, labelRenderer.domElement);
       controls.enableRotate = true;
       controls.enableZoom = true;
       controls.enablePan = true;
@@ -252,19 +266,19 @@ function Map3D(props: Props) {
 
       const { chinaPointLight, worldPointLight } = initLights(scene);
 
-      const onResizeEvent = () => {
+      onResizeEvent = () => {
         camera.aspect = currentDom.clientWidth / currentDom.clientHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
-        labelRenderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer?.setSize(currentDom.clientWidth, currentDom.clientHeight);
+        labelRenderer?.setSize(currentDom.clientWidth, currentDom.clientHeight);
+        renderer?.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       };
 
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
 
       let mouseMoveThrottle = 0;
-      const onMouseMoveEvent = (e: MouseEvent) => {
+      onMouseMoveEvent = (e: MouseEvent) => {
         if (!activeRef.current) return;
         if (isHoveringTooltipRef.current) return;
         // Tooltip 已显示时，给用户一点时间把鼠标移入 Tooltip，避免瞬间消失
@@ -276,11 +290,17 @@ function Map3D(props: Props) {
         mouseMoveThrottle++;
         if (mouseMoveThrottle % UI_CONSTANTS.MOUSE_MOVE_THROTTLE !== 0) return;
 
-        pointer.x = (e.clientX / currentDom.clientWidth) * 2 - 1;
-        pointer.y = -(e.clientY / currentDom.clientHeight) * 2 + 1;
+        // 关键：用“相对地图容器”的坐标换算，侧栏/头部/边距存在时才不会拾取错位
+        const rect = currentDom.getBoundingClientRect();
+        const relX = e.clientX - rect.left;
+        const relY = e.clientY - rect.top;
+        const nx = (relX / rect.width) * 2 - 1;
+        const ny = -(relY / rect.height) * 2 + 1;
+        pointer.x = Math.max(-1, Math.min(1, nx));
+        pointer.y = Math.max(-1, Math.min(1, ny));
 
         const interactiveObjects: THREE.Object3D[] = [];
-        scene.traverse((obj: any) => {
+        scene?.traverse((obj: any) => {
           if (obj.userData.isCity || obj.userData.isChangeColor) {
             interactiveObjects.push(obj);
           }
@@ -320,7 +340,8 @@ function Map3D(props: Props) {
           }
 
           // 命中目标后，设置宽限时间，方便用户移动到 tooltip
-          tooltipGraceUntilRef.current = Date.now() + 500;
+          tooltipGraceUntilRef.current =
+            Date.now() + UI_CONSTANTS.TOOLTIP_GRACE_MS;
 
           const isSameTarget = prevObject && nextObject === prevObject;
           const isTooltipVisibleNow =
@@ -332,6 +353,7 @@ function Map3D(props: Props) {
             applyHoverEffect(
               nextPicked,
               e,
+              currentDom.getBoundingClientRect(),
               toolTipRef,
               setToolTipData,
               currentCityDataRef
@@ -375,6 +397,14 @@ function Map3D(props: Props) {
       const tempPosition = new THREE.Vector3();
       const tempLightTargetWorld = new THREE.Vector3();
 
+      // 初始化完成后，这些对象在本次 effect 生命周期内应始终存在。
+      // 用局部常量收窄类型，避免 TS 认为可能为 null。
+      const rendererRef = renderer!;
+      const labelRendererRef = labelRenderer!;
+      const controlsRef = controls!;
+      const sceneRef = scene!;
+      const mapObject3DRef = mapObject3D!;
+
       const animate = function () {
         frameCount++;
         const delta = clock.getDelta();
@@ -383,17 +413,20 @@ function Map3D(props: Props) {
           modelMixer.forEach((mixer: any) => mixer.update(delta));
         }
 
-        if (controls.enableDamping) {
-          controls.update();
+        if (controlsRef.enableDamping) {
+          controlsRef.update();
         }
 
-        if (frameCount % 3 === 0) {
+        if (
+          UI_CONSTANTS.RAYCASTER_UPDATE_FREQUENCY <= 1 ||
+          frameCount % UI_CONSTANTS.RAYCASTER_UPDATE_FREQUENCY === 0
+        ) {
           raycaster.setFromCamera(pointer, camera);
         }
 
-        renderer.render(scene, camera);
+        rendererRef.render(sceneRef, camera);
         if (labelObject2D && labelObject2D.children.length > 0) {
-          labelRenderer.render(scene, camera);
+          labelRendererRef.render(sceneRef, camera);
         }
 
         if (spotList.length > 0) {
@@ -439,7 +472,7 @@ function Map3D(props: Props) {
             chinaLightTargetLocal ??
             (tempLightTargetWorld.set(0, 0, 0), tempLightTargetWorld);
           tempLightTargetWorld.copy(targetLocal);
-          mapObject3D.localToWorld(tempLightTargetWorld);
+          mapObject3DRef.localToWorld(tempLightTargetWorld);
           // 让灯在目标点正上方一定高度（世界坐标）
           chinaPointLight.position.set(
             tempLightTargetWorld.x,
@@ -452,8 +485,19 @@ function Map3D(props: Props) {
       };
 
       animationFrameIdRef.current = requestAnimationFrame(animate);
-      window.addEventListener("resize", onResizeEvent, false);
-      window.addEventListener("mousemove", onMouseMoveEvent, false);
+      if (onResizeEvent) window.addEventListener("resize", onResizeEvent, false);
+      // 只在地图层监听，避免全局监听 + 重复绑定带来的延迟/卡顿
+      eventTarget = labelRenderer.domElement as unknown as HTMLElement;
+      if (onMouseMoveEvent) {
+        eventTarget.addEventListener("mousemove", onMouseMoveEvent, false);
+      }
+      onMouseLeaveEvent = () => {
+        if (!activeRef.current) return;
+        if (!isHoveringTooltipRef.current) {
+          hideTooltip(toolTipRef.current);
+        }
+      };
+      eventTarget.addEventListener("mouseleave", onMouseLeaveEvent, false);
       setIsLoading(false);
     }, 100);
 
@@ -463,6 +507,51 @@ function Map3D(props: Props) {
       if (animationFrameIdRef.current !== null) {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
+
+      // 清理事件监听，避免重复绑定
+      if (onResizeEvent) {
+        window.removeEventListener("resize", onResizeEvent, false);
+      }
+      if (eventTarget && onMouseMoveEvent) {
+        eventTarget.removeEventListener("mousemove", onMouseMoveEvent, false);
+      }
+      if (eventTarget && onMouseLeaveEvent) {
+        eventTarget.removeEventListener("mouseleave", onMouseLeaveEvent, false);
+      }
+
+      // 释放 WebGL/Controls/场景资源
+      try {
+        controls?.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        disposeObject3D(mapObject3D);
+      } catch {
+        // ignore
+      }
+      try {
+        renderer?.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        // 移除 labelRenderer dom，避免多层叠加导致事件命中异常
+        if (labelRenderer?.domElement?.parentNode) {
+          labelRenderer.domElement.parentNode.removeChild(labelRenderer.domElement);
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        // 移除 canvas
+        if (renderer?.domElement?.parentNode) {
+          renderer.domElement.parentNode.removeChild(renderer.domElement);
+        }
+      } catch {
+        // ignore
+      }
+      scene = null;
     };
   }, [geoJson, mapType, projectionFnParam, displayConfig]);
 
