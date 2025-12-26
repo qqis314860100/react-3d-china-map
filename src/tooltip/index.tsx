@@ -1,3 +1,4 @@
+import { openExternalWithAuthGuard } from "../auth/auth";
 import "./tooltip.css";
 
 function ToolTip(props: any) {
@@ -11,9 +12,7 @@ function ToolTip(props: any) {
   } = data;
 
   const handleDistrictClick = (url?: string) => {
-    if (url) {
-      window.open(url, "_blank");
-    }
+    openExternalWithAuthGuard(url);
   };
 
   // 显示地级市面板或省份面板
@@ -38,7 +37,7 @@ function ToolTip(props: any) {
             </div>
           )}
           {url && (
-            <div className="tooltip__link" onClick={() => window.open(url, "_blank")}>
+            <div className="tooltip__link" onClick={() => openExternalWithAuthGuard(url)}>
               查看详情
             </div>
           )}

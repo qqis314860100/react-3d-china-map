@@ -8,13 +8,14 @@ type Props = {
   projection: ProjectionFnParamType;
 };
 
+import { openExternalWithAuthGuard } from "../auth/auth";
+
 function normalize(s: string) {
   return (s || "").trim().toLowerCase();
 }
 
 function openUrl(url?: string) {
-  if (!url) return;
-  window.open(url, "_blank", "noopener,noreferrer");
+  openExternalWithAuthGuard(url);
 }
 
 async function copyToClipboard(text: string) {
