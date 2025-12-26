@@ -371,7 +371,13 @@ export function generateMapSpot(
       });
       const hit = new THREE.Mesh(hitGeometry, hitMaterial);
       hit.position.set(cityData.coord[0], -cityData.coord[1], mapConfig.spotZIndex + 0.02);
-      hit.userData = cityUserData;
+      // 只让 hit 参与拾取（raycast），并把 hover 目标指向可见的 circle（用于变色）
+      hit.userData = {
+        ...cityUserData,
+        isCity: true,
+        isCityPick: true,
+        hoverMesh: citySpotItem.circle,
+      };
 
       // 添加到场景
       spotObject3D.add(citySpotItem.circle);

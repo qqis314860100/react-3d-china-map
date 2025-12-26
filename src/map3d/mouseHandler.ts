@@ -50,9 +50,11 @@ export function restorePickedObjectColor(pickedObject: any): void {
   
   // 检查是否是地级市圆点或标签
   if (pickedObject.object.userData.isCity) {
+    const hoverMesh = pickedObject.object.userData?.hoverMesh;
+    const target = hoverMesh?.material?.color ? hoverMesh : pickedObject.object;
     // 地级市圆点恢复原色
-    if (pickedObject.object.material && pickedObject.object.material.color) {
-      pickedObject.object.material.color.set(COLORS.CITY_DEFAULT);
+    if (target.material && target.material.color) {
+      target.material.color.set(COLORS.CITY_DEFAULT);
     }
   } else if (pickedObject.object.userData.isChangeColor) {
     // 省份/国家恢复原色
@@ -91,8 +93,10 @@ export function applyHoverEffect(
     const cityData = pickedObject.object.userData;
     
     // 设置悬浮颜色
-    if (pickedObject.object.material && pickedObject.object.material.color) {
-      pickedObject.object.material.color.set(COLORS.CITY_HOVER);
+    const hoverMesh = pickedObject.object.userData?.hoverMesh;
+    const target = hoverMesh?.material?.color ? hoverMesh : pickedObject.object;
+    if (target.material && target.material.color) {
+      target.material.color.set(COLORS.CITY_HOVER);
     }
 
     // 保存当前城市数据

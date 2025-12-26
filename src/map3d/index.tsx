@@ -64,6 +64,7 @@ function Map3D(props: Props) {
   const startLoopFnRef = useRef<(() => void) | null>(null);
   const stopLoopFnRef = useRef<(() => void) | null>(null);
   const activeRef = useRef<boolean>(active);
+  const isDraggingRef = useRef<boolean>(false);
   // 空闲降频：无交互一段时间后降低帧率，显著降低空闲 CPU 占用
   const lastInteractionAtRef = useRef<number>(performance.now());
   // Tooltip 隐藏“宽限期”：用于从地图目标移动到 Tooltip（避免一离开就闪没）
@@ -129,6 +130,8 @@ function Map3D(props: Props) {
     let onResizeEvent: (() => void) | null = null;
     let onMouseMoveEvent: ((e: MouseEvent) => void) | null = null;
     let onMouseLeaveEvent: (() => void) | null = null;
+    let onControlStart: (() => void) | null = null;
+    let onControlEnd: (() => void) | null = null;
 
     // 延迟初始化，确保 Loading 能显示
     const timer = setTimeout(() => {
@@ -263,6 +266,18 @@ function Map3D(props: Props) {
       controls.dampingFactor = 0.15;
       controls.enableZoom = true;
 
+      // OrbitControls 拖拽态：拖拽时不做 hover 拾取，显著降低交互 CPU
+      onControlStart = () => {
+        isDraggingRef.current = true;
+        lastInteractionAtRef.current = performance.now();
+      };
+      onControlEnd = () => {
+        isDraggingRef.current = false;
+        lastInteractionAtRef.current = performance.now();
+      };
+      controls.addEventListener("start", onControlStart);
+      controls.addEventListener("end", onControlEnd);
+
       const currentPhi = Math.PI / 3; // 当前俯视角
       const oppositePhi = Math.PI - currentPhi; // 相反仰视角
 
@@ -290,13 +305,23 @@ function Map3D(props: Props) {
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
       // 可交互对象缓存：避免 mousemove 时每次 traverse scene
-      const interactiveObjects: THREE.Object3D[] = [];
+      // 城市只用“隐形 hit mesh”参与拾取，省份面片降频拾取（大幅降低交互 CPU）
+      const cityPickObjects: THREE.Object3D[] = [];
+      const provincePickObjects: THREE.Object3D[] = [];
+      let provinceRaycastTick = 0;
+      // 默认关闭省份 hover（省份面片拾取非常重）。如需开启再改为 true。
+      const ENABLE_PROVINCE_HOVER = false;
+      // hover 拾取时间节流：避免每次 mousemove 都 raycast（交互时 CPU 大幅下降）
+      const HOVER_RAYCAST_INTERVAL_MS = 40;
+      let lastHoverRaycastAt = 0;
 
       let mouseMoveThrottle = 0;
       onMouseMoveEvent = (e: MouseEvent) => {
         if (!activeRef.current) return;
         // 任何在地图上的移动都视作交互（用于空闲降频恢复）
         lastInteractionAtRef.current = performance.now();
+        // 拖拽旋转/缩放时不做 hover 拾取（最耗 CPU，且用户不需要 tooltip）
+        if (isDraggingRef.current || (e as any).buttons) return;
         if (isHoveringTooltipRef.current) return;
         // Tooltip 已显示时，给用户一点时间把鼠标移入 Tooltip，避免瞬间消失
         const tooltipVisible =
@@ -307,6 +332,10 @@ function Map3D(props: Props) {
         mouseMoveThrottle++;
         if (mouseMoveThrottle % UI_CONSTANTS.MOUSE_MOVE_THROTTLE !== 0) return;
 
+        const now = performance.now();
+        if (now - lastHoverRaycastAt < HOVER_RAYCAST_INTERVAL_MS) return;
+        lastHoverRaycastAt = now;
+
         // 关键：用“相对地图容器”的坐标换算，侧栏/头部/边距存在时才不会拾取错位
         const rect = currentDom.getBoundingClientRect();
         const relX = e.clientX - rect.left;
@@ -316,12 +345,20 @@ function Map3D(props: Props) {
         pointer.x = Math.max(-1, Math.min(1, nx));
         pointer.y = Math.max(-1, Math.min(1, ny));
 
-        // 使用缓存的可交互对象列表
         raycaster.setFromCamera(pointer, camera);
-        const intersects = raycaster.intersectObjects(
-          interactiveObjects,
-          false
-        );
+        // 先拾取城市（数量少、命中率高）
+        const cityIntersects = raycaster.intersectObjects(cityPickObjects, false);
+        // 省份拾取降频：每 2 次 mousemove 才做一次（降低 CPU）
+        provinceRaycastTick++;
+        const doProvince =
+          ENABLE_PROVINCE_HOVER &&
+          cityIntersects.length === 0 &&
+          provinceRaycastTick % 2 === 0;
+        const provinceIntersects = doProvince
+          ? raycaster.intersectObjects(provincePickObjects, false)
+          : [];
+        const intersects =
+          cityIntersects.length > 0 ? cityIntersects : provinceIntersects;
 
         const prevPicked = lastPickRef.current;
         const prevObject = prevPicked?.object;
@@ -416,12 +453,12 @@ function Map3D(props: Props) {
       const controlsRef = controls!;
       const sceneRef = scene!;
       const mapObject3DRef = mapObject3D!;
-      // 初始化完成后构建一次可交互对象列表（城市点、城市文字、省份面）
-      interactiveObjects.length = 0;
+      // 初始化完成后构建一次可交互对象列表
+      cityPickObjects.length = 0;
+      provincePickObjects.length = 0;
       mapObject3DRef.traverse((obj: any) => {
-        if (obj?.userData?.isCity || obj?.userData?.isChangeColor) {
-          interactiveObjects.push(obj);
-        }
+        if (obj?.userData?.isCityPick) cityPickObjects.push(obj);
+        else if (obj?.userData?.isChangeColor) provincePickObjects.push(obj);
       });
 
       // 限帧 + 空闲降频：交互时 30fps，空闲 2s 后降到更低帧率（动效保留但更省）
@@ -580,6 +617,8 @@ function Map3D(props: Props) {
 
       // 释放 WebGL/Controls/场景资源
       try {
+        if (controls && onControlStart) controls.removeEventListener("start", onControlStart);
+        if (controls && onControlEnd) controls.removeEventListener("end", onControlEnd);
         controls?.dispose();
       } catch {
         // ignore
