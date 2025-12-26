@@ -64,6 +64,8 @@ function Map3D(props: Props) {
   const startLoopFnRef = useRef<(() => void) | null>(null);
   const stopLoopFnRef = useRef<(() => void) | null>(null);
   const activeRef = useRef<boolean>(active);
+  // 空闲降频：无交互一段时间后降低帧率，显著降低空闲 CPU 占用
+  const lastInteractionAtRef = useRef<number>(performance.now());
   // Tooltip 隐藏“宽限期”：用于从地图目标移动到 Tooltip（避免一离开就闪没）
   const tooltipGraceUntilRef = useRef<number>(0);
 
@@ -293,6 +295,8 @@ function Map3D(props: Props) {
       let mouseMoveThrottle = 0;
       onMouseMoveEvent = (e: MouseEvent) => {
         if (!activeRef.current) return;
+        // 任何在地图上的移动都视作交互（用于空闲降频恢复）
+        lastInteractionAtRef.current = performance.now();
         if (isHoveringTooltipRef.current) return;
         // Tooltip 已显示时，给用户一点时间把鼠标移入 Tooltip，避免瞬间消失
         const tooltipVisible =
@@ -420,9 +424,10 @@ function Map3D(props: Props) {
         }
       });
 
-      // 限帧：30fps（降低 CPU/GPU），动画用 delta 做速度补偿保持观感一致
-      const TARGET_FPS = 30;
-      const FRAME_INTERVAL = 1000 / TARGET_FPS;
+      // 限帧 + 空闲降频：交互时 30fps，空闲 2s 后降到 6fps
+      const ACTIVE_FPS = 30;
+      const IDLE_FPS = 6;
+      const IDLE_AFTER_MS = 2000;
       let lastFrameTime = 0;
 
       const animate = function () {
@@ -433,7 +438,10 @@ function Map3D(props: Props) {
         }
 
         const now = performance.now();
-        if (lastFrameTime && now - lastFrameTime < FRAME_INTERVAL) {
+        const idleFor = now - lastInteractionAtRef.current;
+        const targetFps = idleFor > IDLE_AFTER_MS ? IDLE_FPS : ACTIVE_FPS;
+        const frameInterval = 1000 / targetFps;
+        if (lastFrameTime && now - lastFrameTime < frameInterval) {
           animationFrameIdRef.current = requestAnimationFrame(animate);
           return;
         }
@@ -447,7 +455,8 @@ function Map3D(props: Props) {
           modelMixer.forEach((mixer: any) => mixer.update(delta));
         }
 
-        if (controlsRef.enableDamping) {
+        // 空闲状态跳过 controls.update（它会持续计算阻尼，增加 CPU）
+        if (idleFor <= IDLE_AFTER_MS && controlsRef.enableDamping) {
           controlsRef.update();
         }
 
@@ -516,6 +525,7 @@ function Map3D(props: Props) {
         if (animationFrameIdRef.current !== null) return;
         // 重新启动时立刻渲染一帧（避免首帧被限帧逻辑跳过）
         lastFrameTime = 0;
+        lastInteractionAtRef.current = performance.now();
         animationFrameIdRef.current = requestAnimationFrame(animate);
       };
       const stopLoop = () => {
