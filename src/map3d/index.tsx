@@ -61,6 +61,8 @@ function Map3D(props: Props) {
   const currentCityDataRef = useRef<any>(null);
   const lastPickRef = useRef<any>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  const startLoopFnRef = useRef<(() => void) | null>(null);
+  const stopLoopFnRef = useRef<(() => void) | null>(null);
   const activeRef = useRef<boolean>(active);
   // Tooltip 隐藏“宽限期”：用于从地图目标移动到 Tooltip（避免一离开就闪没）
   const tooltipGraceUntilRef = useRef<number>(0);
@@ -78,6 +80,8 @@ function Map3D(props: Props) {
     activeRef.current = active;
 
     if (!active) {
+      // inactive：停止渲染循环（大幅降低 CPU）
+      stopLoopFnRef.current?.();
       try {
         if (mapRef.current) mapRef.current.style.cursor = "default";
       } catch {
@@ -98,6 +102,9 @@ function Map3D(props: Props) {
         showPanel: false,
         isCity: false,
       });
+    } else {
+      // active：恢复渲染循环
+      startLoopFnRef.current?.();
     }
   }, [active]);
 
@@ -279,6 +286,8 @@ function Map3D(props: Props) {
 
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
+      // 可交互对象缓存：避免 mousemove 时每次 traverse scene
+      const interactiveObjects: THREE.Object3D[] = [];
 
       let mouseMoveThrottle = 0;
       onMouseMoveEvent = (e: MouseEvent) => {
@@ -302,12 +311,7 @@ function Map3D(props: Props) {
         pointer.x = Math.max(-1, Math.min(1, nx));
         pointer.y = Math.max(-1, Math.min(1, ny));
 
-        const interactiveObjects: THREE.Object3D[] = [];
-        scene?.traverse((obj: any) => {
-          if (obj.userData.isCity || obj.userData.isChangeColor) {
-            interactiveObjects.push(obj);
-          }
-        });
+        // 使用缓存的可交互对象列表
         raycaster.setFromCamera(pointer, camera);
         const intersects = raycaster.intersectObjects(
           interactiveObjects,
@@ -407,8 +411,21 @@ function Map3D(props: Props) {
       const controlsRef = controls!;
       const sceneRef = scene!;
       const mapObject3DRef = mapObject3D!;
+      // 初始化完成后构建一次可交互对象列表（城市点、城市文字、省份面）
+      interactiveObjects.length = 0;
+      mapObject3DRef.traverse((obj: any) => {
+        if (obj?.userData?.isCity || obj?.userData?.isChangeColor) {
+          interactiveObjects.push(obj);
+        }
+      });
 
       const animate = function () {
+        // 非激活状态：不跑 RAF（避免两个地图同时跑导致 CPU 飙高）
+        if (!activeRef.current) {
+          animationFrameIdRef.current = null;
+          return;
+        }
+
         frameCount++;
         const delta = clock.getDelta();
 
@@ -418,13 +435,6 @@ function Map3D(props: Props) {
 
         if (controlsRef.enableDamping) {
           controlsRef.update();
-        }
-
-        if (
-          UI_CONSTANTS.RAYCASTER_UPDATE_FREQUENCY <= 1 ||
-          frameCount % UI_CONSTANTS.RAYCASTER_UPDATE_FREQUENCY === 0
-        ) {
-          raycaster.setFromCamera(pointer, camera);
         }
 
         rendererRef.render(sceneRef, camera);
@@ -487,7 +497,22 @@ function Map3D(props: Props) {
         animationFrameIdRef.current = requestAnimationFrame(animate);
       };
 
-      animationFrameIdRef.current = requestAnimationFrame(animate);
+      // 控制渲染循环启停（给 active effect 调用）
+      const startLoop = () => {
+        if (animationFrameIdRef.current !== null) return;
+        animationFrameIdRef.current = requestAnimationFrame(animate);
+      };
+      const stopLoop = () => {
+        if (animationFrameIdRef.current !== null) {
+          cancelAnimationFrame(animationFrameIdRef.current);
+          animationFrameIdRef.current = null;
+        }
+      };
+      startLoopFnRef.current = startLoop;
+      stopLoopFnRef.current = stopLoop;
+
+      // 初始状态：只在 active 时启动
+      if (activeRef.current) startLoop();
       // 监听 window.resize（侧栏动画结束后由 App 触发一次 resize，避免动画过程中频繁 setSize 导致卡/闪）
       if (onResizeEvent) window.addEventListener("resize", onResizeEvent, false);
       // 只在地图层监听，避免全局监听 + 重复绑定带来的延迟/卡顿
@@ -511,6 +536,8 @@ function Map3D(props: Props) {
       if (animationFrameIdRef.current !== null) {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
+      startLoopFnRef.current = null;
+      stopLoopFnRef.current = null;
 
       // 清理事件监听，避免重复绑定
       if (onResizeEvent) {
