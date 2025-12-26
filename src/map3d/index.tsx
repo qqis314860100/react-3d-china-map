@@ -424,9 +424,9 @@ function Map3D(props: Props) {
         }
       });
 
-      // 限帧 + 空闲降频：交互时 30fps，空闲 2s 后降到 6fps
+      // 限帧 + 空闲降频：交互时 30fps，空闲 2s 后降到更低帧率（动效保留但更省）
       const ACTIVE_FPS = 30;
-      const IDLE_FPS = 6;
+      const IDLE_FPS = 4;
       const IDLE_AFTER_MS = 2000;
       let lastFrameTime = 0;
 
@@ -439,7 +439,8 @@ function Map3D(props: Props) {
 
         const now = performance.now();
         const idleFor = now - lastInteractionAtRef.current;
-        const targetFps = idleFor > IDLE_AFTER_MS ? IDLE_FPS : ACTIVE_FPS;
+        const isIdle = idleFor > IDLE_AFTER_MS;
+        const targetFps = isIdle ? IDLE_FPS : ACTIVE_FPS;
         const frameInterval = 1000 / targetFps;
         if (lastFrameTime && now - lastFrameTime < frameInterval) {
           animationFrameIdRef.current = requestAnimationFrame(animate);
@@ -461,7 +462,8 @@ function Map3D(props: Props) {
         }
 
         rendererRef.render(sceneRef, camera);
-        if (labelObject2D && labelObject2D.children.length > 0) {
+        // 空闲时不需要每帧渲染 2D label（文字是静态的），可明显降低 CPU
+        if (!isIdle && labelObject2D && labelObject2D.children.length > 0) {
           labelRendererRef.render(sceneRef, camera);
         }
 
