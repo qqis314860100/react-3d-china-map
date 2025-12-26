@@ -141,7 +141,8 @@ function Map3D(props: Props) {
       // 让背景图透出来：WebGL canvas 清屏透明
       renderer.setClearColor(0x000000, 0);
       renderer.domElement.style.background = "transparent";
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      // 降低像素比上限，显著减轻 GPU/CPU 压力（尤其是高 DPI 屏幕）
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 
       while (currentDom.firstChild) {
         currentDom.removeChild(currentDom.firstChild);
@@ -281,7 +282,7 @@ function Map3D(props: Props) {
         camera.updateProjectionMatrix();
         renderer?.setSize(w, h);
         labelRenderer?.setSize(w, h);
-        renderer?.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer?.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       };
 
       const raycaster = new THREE.Raycaster();
@@ -419,6 +420,11 @@ function Map3D(props: Props) {
         }
       });
 
+      // 限帧：30fps（降低 CPU/GPU），动画用 delta 做速度补偿保持观感一致
+      const TARGET_FPS = 30;
+      const FRAME_INTERVAL = 1000 / TARGET_FPS;
+      let lastFrameTime = 0;
+
       const animate = function () {
         // 非激活状态：不跑 RAF（避免两个地图同时跑导致 CPU 飙高）
         if (!activeRef.current) {
@@ -426,8 +432,16 @@ function Map3D(props: Props) {
           return;
         }
 
+        const now = performance.now();
+        if (lastFrameTime && now - lastFrameTime < FRAME_INTERVAL) {
+          animationFrameIdRef.current = requestAnimationFrame(animate);
+          return;
+        }
+        lastFrameTime = now;
+
         frameCount++;
         const delta = clock.getDelta();
+        const speedFactor = Math.min(delta * 60, 2.5); // 60fps 归一化，防止大 delta 导致跳变
 
         if (modelMixer.length > 0) {
           modelMixer.forEach((mixer: any) => mixer.update(delta));
@@ -444,7 +458,7 @@ function Map3D(props: Props) {
 
         if (spotList.length > 0) {
           spotList.forEach((mesh: any) => {
-            mesh._s += 0.01;
+            mesh._s += 0.01 * speedFactor;
             if (mesh._s <= 2) {
               mesh.scale.setScalar(mesh._s);
               mesh.material.opacity = 2 - mesh._s;
@@ -459,7 +473,7 @@ function Map3D(props: Props) {
         if (citySpotListRef.length > 0) {
           citySpotListRef.forEach((mesh: any) => {
             if (!mesh._s) mesh._s = 1;
-            mesh._s += 0.015;
+            mesh._s += 0.015 * speedFactor;
             if (mesh._s <= 2.5) {
               mesh.scale.setScalar(mesh._s);
               mesh.material.opacity = 2.5 - mesh._s;
@@ -473,7 +487,7 @@ function Map3D(props: Props) {
 
         if (flySpotList.length > 0) {
           flySpotList.forEach(function (mesh: any) {
-            mesh._s += 0.003;
+            mesh._s += 0.003 * speedFactor;
             mesh.curve.getPointAt(mesh._s % 1, tempPosition);
             mesh.position.copy(tempPosition);
           });
@@ -500,6 +514,8 @@ function Map3D(props: Props) {
       // 控制渲染循环启停（给 active effect 调用）
       const startLoop = () => {
         if (animationFrameIdRef.current !== null) return;
+        // 重新启动时立刻渲染一帧（避免首帧被限帧逻辑跳过）
+        lastFrameTime = 0;
         animationFrameIdRef.current = requestAnimationFrame(animate);
       };
       const stopLoop = () => {
