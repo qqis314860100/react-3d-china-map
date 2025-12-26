@@ -15,6 +15,75 @@ import {
 import { ProjectionFnParamType } from ".";
 import { mapConfig } from "./mapConfig";
 
+// ===== 首都标识（北京） =====
+const BEIJING_LNGLAT: [number, number] = [116.4074, 39.9042];
+
+function createFivePointStarShape(
+  outerRadius: number,
+  innerRadius: number,
+  points: number = 5
+) {
+  const shape = new THREE.Shape();
+  const step = Math.PI / points;
+  const start = -Math.PI / 2; // 顶部开始
+
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerRadius : innerRadius;
+    const a = start + i * step;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return shape;
+}
+
+function createCapitalMarker(mapType: "china" | "world" = "china") {
+  // 中国地图单位下：城市圆点半径 0.25，因此星星做大一些更醒目
+  const outer = mapType === "china" ? 0.45 : 1.2;
+  const inner = mapType === "china" ? 0.2 : 0.52;
+
+  const starShape = createFivePointStarShape(outer, inner, 5);
+  const geo = new THREE.ShapeGeometry(starShape);
+
+  // 白色描边（底层稍大）
+  const border = new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  border.scale.setScalar(1.12);
+
+  // 红色五角星
+  const star = new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({
+      color: "#ff2d2d",
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+
+  const group = new THREE.Object3D();
+  group.add(border);
+  group.add(star);
+
+  // 不参与拾取（避免增加交互 CPU）
+  group.traverse((o: any) => {
+    o.userData = { ...(o.userData || {}), isCapital: true };
+  });
+
+  return group;
+}
+
 // 获取地图的动态缩放值
 export function getDynamicMapScale(
   mapObject3D: THREE.Object3D,
@@ -334,6 +403,22 @@ export function generateMapSpot(
     projectionFnParam,
     mapType
   );
+
+  // 中国地图：额外加“首都北京”标识（红色五角星）
+  if (mapType === "china" && projectionFnParam) {
+    const { center, scale } = projectionFnParam;
+    const projectionFn = d3
+      .geoMercator()
+      .center(center)
+      .scale(scale)
+      .translate([0, 0]);
+    const coord = projectionFn(BEIJING_LNGLAT);
+    if (coord) {
+      const capital = createCapitalMarker(mapType);
+      capital.position.set(coord[0], -coord[1], mapConfig.spotZIndex + 0.08);
+      spotObject3D.add(capital);
+    }
+  }
 
   // 使用统一逻辑创建圆点（传递 mapType 以使用正确的尺寸）
   cityDataList.forEach((cityData) => {
