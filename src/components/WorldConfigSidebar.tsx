@@ -1,14 +1,13 @@
 import React, { useMemo, useState } from "react";
 import type { ProjectionFnParamType } from "../map3d/types";
 import type { WorldCountryConfig } from "../map3d/mapConfig";
+import { openExternalWithAuthGuard } from "../auth/auth";
 
 type Props = {
   title?: string;
   data: WorldCountryConfig[];
   projection: ProjectionFnParamType;
 };
-
-import { openExternalWithAuthGuard } from "../auth/auth";
 
 function normalize(s: string) {
   return (s || "").trim().toLowerCase();

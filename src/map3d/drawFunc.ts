@@ -142,11 +142,11 @@ export function drawExtrudeMesh(
     pointsArray.push(x, -y, mapConfig.topLineZIndex);
   }
 
-  // 性能优化：使用更少的段数，减少顶点数
+  // 性能优化：进一步减少段数，大幅降低顶点内存占用
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: mapConfig.mapDepth, // 挤出的形状深度
     bevelEnabled: false, // 对挤出的形状应用是否斜角
-    curveSegments: 8, // 减少曲线段数（默认12），提高性能
+    curveSegments: 2, // 从8降到2，地图边界不需要极高平滑度，大幅减少内存
   });
 
   const material = new THREE.MeshLambertMaterial({
@@ -506,72 +506,81 @@ export const CITY_SPOT_CONFIG = {
 };
 
 // 绘制地级市/城市圆点（统一逻辑，支持不同地图类型）
+// 性能优化：共享常用几何体和材质，减少内存分配和 GPU 切换开销
+const sharedGeometries = {
+  cityCircle: new THREE.CircleGeometry(0.25, 16),
+  cityInnerGlow: new THREE.CircleGeometry(0.2, 16),
+  cityRing: new THREE.RingGeometry(0.25, 0.5, 16),
+  cityOuterGlow: new THREE.RingGeometry(0.4, 0.7, 16),
+  citySpotWorld: new THREE.CircleGeometry(0.12, 16),
+  cityRingWorld: new THREE.RingGeometry(0.12, 0.35, 16),
+};
+
+const sharedMaterials = {
+  citySpot: new THREE.MeshBasicMaterial({
+    color: mapConfig.spot.glowMaterialColor,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.9,
+  }),
+  cityInnerGlow: new THREE.MeshBasicMaterial({
+    color: mapConfig.spot.innerGlowMaterialColor,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.6,
+  }),
+  cityRing: new THREE.MeshBasicMaterial({
+    color: mapConfig.spot.ringMaterialColor,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.8,
+  }),
+  cityOuterGlow: new THREE.MeshBasicMaterial({
+    color: mapConfig.spot.outerGlowMaterialColor,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.4,
+  }),
+};
+
+// 绘制城市光点（统一逻辑，支持国内/海外不同尺寸）
 export const drawCitySpot = (
   coord: [number, number],
   mapType: "china" | "world" = "china"
 ) => {
   if (coord && coord.length) {
-    const config = CITY_SPOT_CONFIG[mapType];
-
-    /**
-     * 绘制圆点 - 使用明显的金色
-     */
-    const spotGeometry = new THREE.CircleGeometry(config.circleRadius, 32);
-
-    const spotMaterial = new THREE.MeshBasicMaterial({
-      color: mapConfig.spot.glowMaterialColor, // 金色
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const circle = new THREE.Mesh(spotGeometry, spotMaterial);
+    const isChina = mapType === "china";
+    
+    // 基础圆点
+    const circle = new THREE.Mesh(
+      isChina ? sharedGeometries.cityCircle : sharedGeometries.citySpotWorld,
+      sharedMaterials.citySpot
+    );
     circle.position.set(coord[0], -coord[1], mapConfig.spotZIndex);
 
-    // 添加发光效果 - 内圈
-    const innerGlowGeometry = new THREE.CircleGeometry(
-      config.innerGlowRadius,
-      32
+    // 内圈发光
+    const innerGlow = new THREE.Mesh(
+      sharedGeometries.cityInnerGlow,
+      sharedMaterials.cityInnerGlow
     );
-    const innerGlowMaterial = new THREE.MeshBasicMaterial({
-      color: mapConfig.spot.innerGlowMaterialColor,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.6,
-    });
-    const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
     innerGlow.position.set(coord[0], -coord[1], mapConfig.spotZIndex + 0.01);
 
-    // 圆环 - 使用更明显的颜色和更大尺寸
-    const ringGeometry = new THREE.RingGeometry(
-      config.ringInnerRadius,
-      config.ringOuterRadius,
-      32
+    // 动态圆环
+    const ring = new THREE.Mesh(
+      isChina ? sharedGeometries.cityRing : sharedGeometries.cityRingWorld,
+      sharedMaterials.cityRing
     );
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: mapConfig.spot.ringMaterialColor, // 金色，更亮
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.8,
-    });
-    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.position.set(coord[0], -coord[1], mapConfig.spotZIndex);
 
-    // 添加外圈发光效果
-    const outerGlowGeometry = new THREE.RingGeometry(
-      config.outerGlowInnerRadius,
-      config.outerGlowOuterRadius,
-      32
-    );
-
-    // 添加发光效果 - 外圈
-    const outerGlowMaterial = new THREE.MeshBasicMaterial({
-      color: mapConfig.spot.outerGlowMaterialColor, // 橙色
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.4,
-    });
-    const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
-    outerGlow.position.set(coord[0], -coord[1], mapConfig.spotZIndex - 0.01);
+    // 外圈发光（仅国内显示，增强视觉）
+    let outerGlow = null;
+    if (isChina) {
+      outerGlow = new THREE.Mesh(
+        sharedGeometries.cityOuterGlow,
+        sharedMaterials.cityOuterGlow
+      );
+      outerGlow.position.set(coord[0], -coord[1], mapConfig.spotZIndex - 0.01);
+    }
 
     return { circle, ring, innerGlow, outerGlow };
   }

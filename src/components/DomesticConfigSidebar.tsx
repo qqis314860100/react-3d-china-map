@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { ProvinceConfig, DistrictConfig } from "../map3d/types";
+import { openExternalWithAuthGuard } from "../auth/auth";
 
 type Props = {
   title?: string;
@@ -20,8 +21,6 @@ function countStats(data: ProvinceConfig[]) {
 
   return { provinceCount, cityCount, baseCount };
 }
-
-import { openExternalWithAuthGuard } from "../auth/auth";
 
 function normalize(s: string) {
   return (s || "").trim().toLowerCase();

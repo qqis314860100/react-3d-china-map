@@ -10,7 +10,7 @@ import { GeoJsonType } from "./typed";
 import { initScene } from "./scene";
 import { initCamera } from "./camera";
 import { initLights } from "./light";
-import { UI_CONSTANTS } from "./constants";
+import { UI_CONSTANTS, ANIMATION_CONSTANTS } from "./constants";
 import { hideTooltip } from "./utils";
 import { disposeObject3D } from "./dispose";
 import {
@@ -132,6 +132,8 @@ function Map3D(props: Props) {
     let onMouseLeaveEvent: (() => void) | null = null;
     let onControlStart: (() => void) | null = null;
     let onControlEnd: (() => void) | null = null;
+    const cityPickObjects: THREE.Object3D[] = [];
+    const provincePickObjects: THREE.Object3D[] = [];
 
     // 延迟初始化，确保 Loading 能显示
     const timer = setTimeout(() => {
@@ -304,10 +306,7 @@ function Map3D(props: Props) {
 
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
-      // 可交互对象缓存：避免 mousemove 时每次 traverse scene
       // 城市只用“隐形 hit mesh”参与拾取，省份面片降频拾取（大幅降低交互 CPU）
-      const cityPickObjects: THREE.Object3D[] = [];
-      const provincePickObjects: THREE.Object3D[] = [];
       let provinceRaycastTick = 0;
       // 默认关闭省份 hover（省份面片拾取非常重）。如需开启再改为 true。
       const ENABLE_PROVINCE_HOVER = false;
@@ -535,7 +534,7 @@ function Map3D(props: Props) {
 
         if (flySpotList.length > 0) {
           flySpotList.forEach(function (mesh: any) {
-            mesh._s += 0.003 * speedFactor;
+            mesh._s += ANIMATION_CONSTANTS.FLY_SPOT_SPEED * speedFactor;
             mesh.curve.getPointAt(mesh._s % 1, tempPosition);
             mesh.position.copy(tempPosition);
           });
@@ -624,32 +623,48 @@ function Map3D(props: Props) {
         // ignore
       }
       try {
-        disposeObject3D(mapObject3D);
+        // 彻底清理场景资源
+        if (scene) {
+          disposeObject3D(scene);
+          scene.clear();
+        }
       } catch {
         // ignore
       }
       try {
-        renderer?.dispose();
+        if (renderer) {
+          renderer.dispose();
+          renderer.forceContextLoss();
+        }
       } catch {
         // ignore
       }
       try {
         // 移除 labelRenderer dom，避免多层叠加导致事件命中异常
-        if (labelRenderer?.domElement?.parentNode) {
-          labelRenderer.domElement.parentNode.removeChild(labelRenderer.domElement);
+        if (labelRenderer?.domElement) {
+          labelRenderer.domElement.remove();
         }
       } catch {
         // ignore
       }
       try {
         // 移除 canvas
-        if (renderer?.domElement?.parentNode) {
-          renderer.domElement.parentNode.removeChild(renderer.domElement);
+        if (renderer?.domElement) {
+          renderer.domElement.remove();
         }
       } catch {
         // ignore
       }
-      scene = null;
+      
+      // 清除本地闭包对大型对象的引用，辅助垃圾回收
+      (scene as any) = null;
+      (renderer as any) = null;
+      (labelRenderer as any) = null;
+      (controls as any) = null;
+      (mapObject3D as any) = null;
+      // 数组清空内容即可，const 变量不能赋 null
+      cityPickObjects.length = 0;
+      provincePickObjects.length = 0;
     };
   }, [geoJson, mapType, projectionFnParam, displayConfig]);
 

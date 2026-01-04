@@ -29,19 +29,24 @@ export function disposeObject3D(root: THREE.Object3D | null | undefined) {
   if (!root) return;
 
   root.traverse((obj: any) => {
-    if (obj.geometry && typeof obj.geometry.dispose === "function") {
-      try {
-        obj.geometry.dispose();
-      } catch {
-        // ignore
-      }
+    // 释放几何体
+    if (obj.geometry) {
+      obj.geometry.dispose();
     }
 
-    const material = obj.material as AnyMaterial | AnyMaterial[] | undefined;
-    if (Array.isArray(material)) {
-      material.forEach((m) => m && disposeMaterial(m));
-    } else if (material) {
-      disposeMaterial(material);
+    // 释放材质
+    if (obj.material) {
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      materials.forEach((mat: any) => {
+        // 释放材质上的纹理
+        Object.keys(mat).forEach((key) => {
+          const value = mat[key];
+          if (value && typeof value === "object" && value.isTexture) {
+            value.dispose();
+          }
+        });
+        mat.dispose();
+      });
     }
   });
 }

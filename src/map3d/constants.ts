@@ -35,8 +35,8 @@ export const ANIMATION_CONSTANTS = {
   SPOT_ANIMATION_SPEED: 0.01,
   CITY_SPOT_ANIMATION_SPEED: 0.015,
   
-  // 飞行圆点动画速度
-  FLY_SPOT_SPEED: 0.003,
+  // 飞行圆点动画速度（减慢一半，使视觉更平缓）
+  FLY_SPOT_SPEED: 0.0008,
 };
 
 // ==================== 省份 Adcode 映射 ====================

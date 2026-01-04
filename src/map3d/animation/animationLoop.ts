@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { ANIMATION_CONSTANTS } from "../constants";
 
 /**
  * 创建优化的动画循环
@@ -81,7 +82,7 @@ export const createAnimationLoop = (
     // 飞行的圆点
     if (flySpotList.length > 0) {
       flySpotList.forEach(function (mesh: any) {
-        mesh._s += 0.003;
+        mesh._s += ANIMATION_CONSTANTS.FLY_SPOT_SPEED;
         mesh.curve.getPointAt(mesh._s % 1, tempPosition);
         mesh.position.copy(tempPosition);
       });
