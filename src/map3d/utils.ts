@@ -3,6 +3,57 @@
 import { GeoJsonType } from "./typed";
 
 /**
+ * 自动检测当前设备性能模式
+ * 识别云桌面（虚拟GPU）和低性能硬件
+ */
+export function detectPerformanceMode(): "low" | "normal" {
+  try {
+    // 1. 显卡识别 (最针对云桌面)
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (gl) {
+      const glContext = gl as WebGLRenderingContext;
+      const debugInfo = glContext.getExtension("WEBGL_debug_renderer_info");
+      if (debugInfo) {
+        const renderer = glContext.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase();
+        // 云桌面常用虚拟显卡关键词
+        const vdiKeywords = [
+          "sangfor", // 深信服
+          "gallium", // Mesa/Linux 虚拟化常用
+          "software", // 软件渲染
+          "llvmpipe", // 软件渲染
+          "microsoft basic render", // Windows 基础渲染驱动
+          "swiftshader", // Google 软件渲染
+          "virtualbox",
+          "vmware",
+          "parallels",
+          "citrix",
+        ];
+        
+        if (vdiKeywords.some(key => renderer.includes(key))) {
+          console.warn("探测到虚拟化显卡环境，自动开启低配渲染模式:", renderer);
+          return "low";
+        }
+      }
+    }
+
+    // 2. 硬件参数识别
+    // CPU 核心数过低
+    if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) {
+      return "low";
+    }
+    // 内存过低 (单位 GB)
+    if ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4) {
+      return "low";
+    }
+
+    return "normal";
+  } catch (e) {
+    return "normal"; // 报错则默认正常模式
+  }
+}
+
+/**
  * 过滤 GeoJSON 数据，移除极地区域（南极和北极）
  * @param geoJsonData 原始 GeoJSON 数据
  * @returns 过滤后的 GeoJSON 数据

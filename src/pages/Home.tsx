@@ -8,7 +8,7 @@ import {
   WORLD_MAP_PROJECTION,
   WorldCountryConfig,
 } from "../map3d/mapConfig";
-import { filterPolarRegions } from "../map3d/utils";
+import { filterPolarRegions, detectPerformanceMode } from "../map3d/utils";
 import { ProjectionFnParamType } from "../map3d/types";
 import MapTabs from "../components/MapTabs";
 import DomesticConfigSidebar from "../components/DomesticConfigSidebar";
@@ -37,6 +37,16 @@ export default function Home() {
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
+  
+  // 自动检测性能模式：URL 参数优先级最高，其次是系统自动探测
+  const performanceMode = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const lowParam = params.get("low");
+    if (lowParam === "1") return "low";
+    if (lowParam === "0") return "normal";
+    return detectPerformanceMode();
+  }, []);
+
   const [projectionFnParam] =
     useState<ProjectionFnParamType>(CHINA_MAP_PROJECTION);
   const [worldProjectionFnParam] =
@@ -209,6 +219,7 @@ export default function Home() {
               <MapTabs
                 selectedIndex={tabIndex}
                 onSelect={setTabIndex}
+                performanceMode={performanceMode}
                 chinaGeoJson={geoJson}
                 worldGeoJson={worldGeoJson}
                 chinaProjection={projectionFnParam}

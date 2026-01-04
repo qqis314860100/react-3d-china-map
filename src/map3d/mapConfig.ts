@@ -4,6 +4,8 @@ const Depth = 6;
 
 // ==================== 地图配置 ====================
 export const mapConfig = {
+  // 性能模式：'low' (低配/云桌面) | 'normal' (正常)
+  performanceMode: 'normal' as 'low' | 'normal',
   // 地图挤出厚度
   mapDepth: Depth,
   // 地图透明度（用于让背景图透出来）

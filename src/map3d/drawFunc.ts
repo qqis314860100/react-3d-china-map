@@ -142,11 +142,11 @@ export function drawExtrudeMesh(
     pointsArray.push(x, -y, mapConfig.topLineZIndex);
   }
 
-  // 性能优化：进一步减少段数，大幅降低顶点内存占用
+  // 性能优化：根据模式调整段数。低配模式设为 1 (直线化)，大幅减少顶点。
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: mapConfig.mapDepth, // 挤出的形状深度
     bevelEnabled: false, // 对挤出的形状应用是否斜角
-    curveSegments: 2, // 从8降到2，地图边界不需要极高平滑度，大幅减少内存
+    curveSegments: mapConfig.performanceMode === 'low' ? 1 : 2, 
   });
 
   const material = new THREE.MeshLambertMaterial({
@@ -155,38 +155,44 @@ export function drawExtrudeMesh(
     opacity: mapConfig.mapOpacity,
   });
 
-  const materialSide = new THREE.ShaderMaterial({
-    uniforms: {
-      color1: {
-        value: new THREE.Color(mapType === "china" ? CHINA_COLOR_THEME.side1 : mapConfig.mapSideColor1),
-      },
-      color2: {
-        value: new THREE.Color(mapType === "china" ? CHINA_COLOR_THEME.side2 : mapConfig.mapSideColor2),
-      },
-      opacity: {
-        value: mapConfig.mapOpacity,
-      },
-    },
-    vertexShader: `
-      varying vec3 vPosition;
-      void main() {
-        vPosition = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 color1;
-      uniform vec3 color2;
-      uniform float opacity;
-      varying vec3 vPosition;
-      void main() {
-        vec3 mixColor = mix(color1, color2, 0.5 - vPosition.z * 0.2); // 使用顶点坐标 z 分量来控制混合
-        gl_FragColor = vec4(mixColor, opacity);
-      }
-    `,
-    transparent: mapConfig.mapTransparent,
-    //   wireframe: true,
-  });
+  // 性能优化：低配模式下侧面使用纯色 Lambert 材质，避免 ShaderMaterial 计算开销
+  const materialSide = mapConfig.performanceMode === 'low' 
+    ? new THREE.MeshLambertMaterial({
+        color: mapType === "china" ? CHINA_COLOR_THEME.side1 : mapConfig.mapSideColor1,
+        transparent: mapConfig.mapTransparent,
+        opacity: mapConfig.mapOpacity,
+      })
+    : new THREE.ShaderMaterial({
+        uniforms: {
+          color1: {
+            value: new THREE.Color(mapType === "china" ? CHINA_COLOR_THEME.side1 : mapConfig.mapSideColor1),
+          },
+          color2: {
+            value: new THREE.Color(mapType === "china" ? CHINA_COLOR_THEME.side2 : mapConfig.mapSideColor2),
+          },
+          opacity: {
+            value: mapConfig.mapOpacity,
+          },
+        },
+        vertexShader: `
+          varying vec3 vPosition;
+          void main() {
+            vPosition = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 color1;
+          uniform vec3 color2;
+          uniform float opacity;
+          varying vec3 vPosition;
+          void main() {
+            vec3 mixColor = mix(color1, color2, 0.5 - vPosition.z * 0.2); // 使用顶点坐标 z 分量来控制混合
+            gl_FragColor = vec4(mixColor, opacity);
+          }
+        `,
+        transparent: mapConfig.mapTransparent,
+      });
 
   const mesh: any = new THREE.Mesh(geometry, [material, materialSide]);
   // userData 存储自定义属性，保存原始颜色用于恢复

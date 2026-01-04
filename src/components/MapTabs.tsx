@@ -12,6 +12,10 @@ interface MapTabsProps {
   chinaDisplayConfig: ProvinceConfig[];
   worldDisplayConfig: ProvinceConfig[];
   /**
+   * 性能模式：'low' (低配/云桌面) | 'normal' (正常)
+   */
+  performanceMode?: "low" | "normal";
+  /**
    * 受控模式：由外部控制当前 Tab（0=国内，1=海外）
    */
   selectedIndex?: number;
@@ -26,6 +30,7 @@ const MapTabs: React.FC<MapTabsProps> = ({
   worldProjection,
   chinaDisplayConfig,
   worldDisplayConfig,
+  performanceMode = "normal",
   selectedIndex: selectedIndexProp,
   onSelect,
   defaultIndex = 0,
@@ -76,6 +81,7 @@ const MapTabs: React.FC<MapTabsProps> = ({
                   projectionFnParam={chinaProjection}
                   displayConfig={chinaDisplayConfig}
                   mapType="china"
+                  performanceMode={performanceMode}
                   active={selectedIndex === 0}
                 />
               ) : (
@@ -89,6 +95,7 @@ const MapTabs: React.FC<MapTabsProps> = ({
                   projectionFnParam={worldProjection}
                   displayConfig={worldDisplayConfig}
                   mapType="world"
+                  performanceMode={performanceMode}
                   active={selectedIndex === 1}
                 />
               ) : (

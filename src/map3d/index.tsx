@@ -40,6 +40,10 @@ interface Props {
   displayConfig: ProvinceConfig[];
   mapType?: "china" | "world";
   /**
+   * 性能模式：'low' (低配/云桌面) | 'normal' (正常)
+   */
+  performanceMode?: "low" | "normal";
+  /**
    * 当前 Map3D 是否处于激活状态（用于“两个地图同时挂载”时避免 tooltip/拾取互相干扰）
    */
   active?: boolean;
@@ -51,6 +55,7 @@ function Map3D(props: Props) {
     projectionFnParam,
     displayConfig,
     mapType = "china",
+    performanceMode = "normal",
     active = true,
   } = props;
 
@@ -141,15 +146,17 @@ function Map3D(props: Props) {
       const { camera } = initCamera(currentDom, mapType);
 
       renderer = new THREE.WebGLRenderer({
-        antialias: true,
+        // 低配模式关闭抗锯齿，大幅降低着色器开销
+        antialias: performanceMode === 'low' ? false : true,
         powerPreference: "high-performance",
       });
       renderer.setSize(currentDom.clientWidth, currentDom.clientHeight);
       // 让背景图透出来：WebGL canvas 清屏透明
       renderer.setClearColor(0x000000, 0);
       renderer.domElement.style.background = "transparent";
-      // 降低像素比上限，显著减轻 GPU/CPU 压力（尤其是高 DPI 屏幕）
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      // 降低像素比上限。低配模式强制 1.0，减少 50% 以上像素填充。
+      const dpr = performanceMode === 'low' ? 1.0 : Math.min(window.devicePixelRatio, 1.5);
+      renderer.setPixelRatio(dpr);
 
       while (currentDom.firstChild) {
         currentDom.removeChild(currentDom.firstChild);
@@ -460,9 +467,9 @@ function Map3D(props: Props) {
         else if (obj?.userData?.isChangeColor) provincePickObjects.push(obj);
       });
 
-      // 限帧 + 空闲降频：交互时 30fps，空闲 2s 后降到更低帧率（动效保留但更省）
-      const ACTIVE_FPS = 30;
-      const IDLE_FPS = 4;
+      // 限帧 + 空闲降频：交互时根据模式设定 FPS，空闲 2s 后降到更低帧率
+      const ACTIVE_FPS = performanceMode === 'low' ? 20 : 30;
+      const IDLE_FPS = performanceMode === 'low' ? 2 : 4;
       const IDLE_AFTER_MS = 2000;
       let lastFrameTime = 0;
 
@@ -666,7 +673,7 @@ function Map3D(props: Props) {
       cityPickObjects.length = 0;
       provincePickObjects.length = 0;
     };
-  }, [geoJson, mapType, projectionFnParam, displayConfig]);
+  }, [geoJson, mapType, projectionFnParam, displayConfig, performanceMode]);
 
   return (
     <div
