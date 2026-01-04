@@ -122,32 +122,8 @@ export function applyHoverEffect(
       url: cityData.url,
     });
   } else {
-    // 处理省份/国家悬浮
-    const properties = pickedObject.object.parent.customProperties;
-    
-    // 设置悬浮颜色
-    if (pickedObject.object.material[0]) {
-      pickedObject.object.material[0].color.set(mapConfig.mapHoverColor);
-      pickedObject.object.material[0].opacity = 1;
-    }
-    
-    // 设置 Tooltip 位置
-    setTooltipPosition(
-      tooltipRef.current,
-      baseX,
-      baseY,
-      UI_CONSTANTS.TOOLTIP_OFFSET_X,
-      UI_CONSTANTS.TOOLTIP_OFFSET_Y
-    );
-    
-    // 显示省份/国家信息
-    setTooltipData({
-      text: properties.name,
-      isCity: false,
-      provinceName: properties.name,
-      districts: [],
-      showPanel: true,
-    });
+    // 省份/国家不再展示 tooltip（避免大面积 hover 时弹窗）
+    return;
   }
 }
 
