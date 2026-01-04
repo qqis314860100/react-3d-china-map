@@ -142,11 +142,11 @@ export function drawExtrudeMesh(
     pointsArray.push(x, -y, mapConfig.topLineZIndex);
   }
 
-  // 性能优化：根据模式调整段数。低配模式设为 1 (直线化)，大幅减少顶点。
+  // 性能模式区分：低配用 1 (直线)，正常模式用 8 (圆润，视觉效果好)
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: mapConfig.mapDepth, // 挤出的形状深度
     bevelEnabled: false, // 对挤出的形状应用是否斜角
-    curveSegments: mapConfig.performanceMode === 'low' ? 1 : 2, 
+    curveSegments: mapConfig.performanceMode === 'low' ? 1 : 8, 
   });
 
   const material = new THREE.MeshLambertMaterial({

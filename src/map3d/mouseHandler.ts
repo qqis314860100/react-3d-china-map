@@ -122,8 +122,14 @@ export function applyHoverEffect(
       url: cityData.url,
     });
   } else {
-    // 省份/国家不再展示 tooltip（避免大面积 hover 时弹窗）
-    return;
+    // 处理省份/国家悬浮高亮反馈
+    if (pickedObject.object.material && pickedObject.object.material[0]) {
+      pickedObject.object.material[0].color.set(mapConfig.mapHoverColor);
+      pickedObject.object.material[0].opacity = 1;
+    }
+    
+    // 省份/国家不再弹出 Tooltip 名字，仅保留视觉高亮反馈
+    hideTooltip(tooltipRef.current);
   }
 }
 

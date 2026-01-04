@@ -315,8 +315,8 @@ function Map3D(props: Props) {
       const pointer = new THREE.Vector2();
       // 城市只用“隐形 hit mesh”参与拾取，省份面片降频拾取（大幅降低交互 CPU）
       let provinceRaycastTick = 0;
-      // 默认关闭省份 hover（省份面片拾取非常重）。如需开启再改为 true。
-      const ENABLE_PROVINCE_HOVER = false;
+      // 正常模式下开启省份 hover 高亮，低配模式为了极致性能保持关闭
+      const ENABLE_PROVINCE_HOVER = performanceMode === 'normal';
       // hover 拾取时间节流：避免每次 mousemove 都 raycast（交互时 CPU 大幅下降）
       const HOVER_RAYCAST_INTERVAL_MS = 40;
       let lastHoverRaycastAt = 0;
@@ -354,15 +354,21 @@ function Map3D(props: Props) {
         raycaster.setFromCamera(pointer, camera);
         // 先拾取城市（数量少、命中率高）
         const cityIntersects = raycaster.intersectObjects(cityPickObjects, false);
-        // 省份拾取降频：每 2 次 mousemove 才做一次（降低 CPU）
+        
+        // 省份拾取降频逻辑优化：避免在跳过帧时清空状态导致闪烁
         provinceRaycastTick++;
-        const doProvince =
-          ENABLE_PROVINCE_HOVER &&
-          cityIntersects.length === 0 &&
-          provinceRaycastTick % 2 === 0;
-        const provinceIntersects = doProvince
+        const isProvinceTick = provinceRaycastTick % 2 === 0;
+        const shouldCheckProvince = ENABLE_PROVINCE_HOVER && cityIntersects.length === 0;
+
+        // 如果这帧既没中城市，又不该测省份，就直接返回，维持上一帧的状态
+        if (shouldCheckProvince && !isProvinceTick) {
+          return;
+        }
+
+        const provinceIntersects = shouldCheckProvince
           ? raycaster.intersectObjects(provincePickObjects, false)
           : [];
+        
         const intersects =
           cityIntersects.length > 0 ? cityIntersects : provinceIntersects;
 
